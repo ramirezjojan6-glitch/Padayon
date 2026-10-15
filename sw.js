@@ -1,4 +1,4 @@
-const CACHE = 'padayon-v5';
+const CACHE = 'padayon-v6';
 const SHELL = [
   './', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './firebase-config.js',
   './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js',
@@ -31,7 +31,9 @@ self.addEventListener('fetch', e => {
     const same = url.origin === self.location.origin;
     if (same) {
       try {
-        const res = await fetch(req);
+        const res = url.pathname.endsWith('/firebase-config.js')
+          ? await fetch(req, { cache: 'no-store' })
+          : await fetch(req);
         if (res && res.ok) { const c = await caches.open(CACHE); c.put(req, res.clone()); }
         return res;
       } catch (err) {

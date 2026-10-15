@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>(function(){try{var p=localStorage.getItem('pd_theme')||'auto';var d=p==='dark'||(p==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=d?'dark':'light'}catch(e){}})()</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f4f7">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>Padayon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap">
+<style>
+:root{
+  --ink:#1c1733; --mute:#4d4866; --red:#b3262b; --btn:#3f78a6; --hi:#ffe14d; --onhi:#1c1733;
+  --bad:#a4161a; --ok:#11643a;
+  --disp:"Bebas Neue","Oswald","Arial Narrow",Impact,sans-serif;
+  --body:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --glass:rgba(255,255,255,.55); --glass-line:rgba(255,255,255,.75);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  font-family:var(--body); font-size:16px; line-height:1.5; color:var(--ink); background:#f4f4f7;
+  display:flex; flex-direction:column; height:100dvh; overflow:hidden;
+  padding-top:env(safe-area-inset-top,0px);
+}
+body::before{
+  content:""; position:fixed; inset:0; z-index:-1;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255,170,220,.55), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(150,185,255,.55), transparent 40%),
+    radial-gradient(circle at 70% 92%, rgba(255,225,150,.6), transparent 45%),
+    radial-gradient(circle at 15% 88%, rgba(170,230,200,.5), transparent 40%),
+    #f4f4f7;
+}
+header{padding:12px 24px 0; display:flex; align-items:center; justify-content:space-between; gap:10px}
+header h1{margin:0; font-family:var(--disp); font-weight:400; font-size:58px; line-height:1; letter-spacing:.01em}
+header .pa{color:#000} header .day{color:var(--red)}
+
+/* ----- stacked folders ----- */
+.stack{position:relative; flex:1; margin:0 14px; min-height:0}
+.folder{
+  position:absolute; left:0; top:86px; bottom:calc(12px + env(safe-area-inset-bottom,0px)); width:calc(100% - 52px);
+  --d:0; transform:translate(calc(var(--d) * 13px), calc(var(--d) * -17px));
+  border-radius:26px;
+  background:linear-gradient(160deg, rgba(var(--c),.78), rgba(var(--c),.55));
+  -webkit-backdrop-filter:blur(18px) saturate(150%); backdrop-filter:blur(18px) saturate(150%);
+  border:1px solid rgba(255,255,255,.7);
+  box-shadow:0 10px 32px rgba(var(--c),.35), inset 0 1px 0 rgba(255,255,255,.7);
+}
+.folder:not(.front){cursor:pointer}
+.folder:not(.front) .body{visibility:hidden}
+.tab{
+  position:absolute; top:-25px; left:calc(2.5% + var(--i) * 19.4%); width:18%; height:26px; padding:0 4px;
+  font-family:var(--disp); font-size:15px; letter-spacing:.06em; color:var(--ink); cursor:pointer;
+  background:rgba(var(--c),.85); border:1px solid rgba(255,255,255,.7); border-bottom:0; border-radius:12px 12px 0 0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.folder.front .tab{background:rgba(var(--c),.95); box-shadow:inset 0 2px 0 rgba(255,255,255,.7)}
+.body{position:absolute; inset:0; overflow-y:auto; padding:18px 18px 28px; border-radius:inherit}
+@media (prefers-reduced-motion:no-preference){ .folder{transition:transform .35s cubic-bezier(.3,.8,.3,1)} }
+
+/* ----- controls ----- */
+button.b, label.b{
+  display:inline-block; font-family:var(--disp); font-size:18px; letter-spacing:.05em; line-height:1;
+  padding:9px 20px; border-radius:999px; border:1px solid rgba(255,255,255,.55); cursor:pointer;
+  background:var(--btn); color:#fff; box-shadow:0 2px 8px rgba(40,60,100,.18);
+}
+button.b.alt, label.b.alt{background:rgba(255,255,255,.45); color:var(--ink); border-color:var(--glass-line)}
+button.b.danger{background:rgba(255,255,255,.45); color:var(--bad); border-color:var(--glass-line)}
+button.b:disabled{opacity:.5}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,.folder:focus-visible{outline:3px solid var(--ink); outline-offset:2px}
+input[type=text],input[type=password],textarea{
+  width:100%; font:inherit; font-size:15px; color:var(--ink); background:rgba(255,255,255,.55);
+  border:1px solid var(--glass-line); border-radius:12px; padding:9px 12px;
+}
+textarea{min-height:100px; resize:vertical}
+select{
+  font-family:var(--disp); font-size:17px; letter-spacing:.05em; color:var(--ink);
+  background:rgba(255,255,255,.45); border:1px solid var(--glass-line); border-radius:999px; padding:8px 14px; max-width:100%;
+}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.grow{flex:1}
+small,.mute{color:var(--mute); font-size:13px}
+h2{font-family:var(--disp); font-weight:400; font-size:26px; letter-spacing:.03em; margin:18px 0 6px}
+.folderlabel{font-family:var(--disp); font-size:20px; letter-spacing:.05em; margin:20px 0 8px; color:var(--ink)}
+.empty{text-align:center; color:var(--mute); padding:32px 8px}
+
+/* widgets */
+.card{
+  background:var(--glass); border:1px solid var(--glass-line); border-radius:18px; padding:14px; margin:12px 0;
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:0 4px 16px rgba(60,40,90,.1);
+}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:12px; margin-top:12px}
+.grid .card{margin:0; display:flex; flex-direction:column; gap:8px}
+.grid .card{position:relative}
+.grid .card.on{outline:3px solid var(--btn)}
+.x{position:absolute; top:10px; right:10px; width:30px; height:30px; padding:0; border-radius:50%; border:1px solid var(--glass-line); background:rgba(255,255,255,.8); color:var(--bad); font-size:14px; line-height:1; cursor:pointer}
+.chk{position:absolute; top:10px; right:10px; width:24px; height:24px; accent-color:var(--btn)}
+.badge{
+  align-self:flex-start; font-family:var(--disp); font-size:15px; letter-spacing:.08em; background:var(--hi); color:var(--onhi);
+  padding:1px 10px; border-radius:8px;
+}
+.fname{font-weight:700; line-height:1.25; word-break:break-word; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+.grid .row{margin-top:auto}
+.grid button.b{padding:8px 14px; font-size:16px}
+.fc{min-height:230px; display:flex; flex-direction:column; justify-content:center; text-align:center; padding:26px 18px; cursor:pointer; user-select:none}
+.fc .q{font-size:20px; line-height:1.4}
+.fc .a{margin-top:16px; padding:10px 12px; background:var(--hi); color:var(--onhi); border-radius:10px; font-size:19px; font-weight:600}
+.blank{background:var(--hi); color:var(--onhi); border-radius:4px; padding:0 8px; font-weight:700}
+.opt{
+  display:block; width:100%; text-align:left; background:var(--glass); color:var(--ink);
+  border:1px solid var(--glass-line); border-radius:14px; padding:12px 14px; margin:8px 0; font:inherit; cursor:pointer;
+}
+.opt.ok{background:rgba(120,220,160,.65); border-color:var(--ok)}
+.opt.bad{background:rgba(255,150,150,.65); border-color:var(--bad)}
+.progress{height:8px; background:rgba(255,255,255,.55); border-radius:4px; overflow:hidden; margin:6px 0 12px}
+.progress i{display:block; height:100%; background:var(--btn)}
+.score{font-family:var(--disp); font-size:72px; text-align:center; line-height:1.1; margin-top:8px}
+#login{
+  position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; padding:16px; overflow:auto;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255,170,220,.55), transparent 42%),
+    radial-gradient(circle at 88% 12%, rgba(150,185,255,.55), transparent 40%),
+    radial-gradient(circle at 70% 92%, rgba(255,225,150,.6), transparent 45%),
+    radial-gradient(circle at 15% 88%, rgba(170,230,200,.5), transparent 40%),
+    #f4f4f7;
+}
+#login.on{display:flex}
+.login-card{width:100%; max-width:400px; margin:auto; padding:22px 20px}
+.login-card .b{width:100%; margin:6px 0}
+.loginlogo{margin:0 0 4px; text-align:center; font-family:var(--disp); font-weight:400; font-size:58px; line-height:1}
+.loginlogo .pa{color:#000} .loginlogo .day{color:var(--red)}
+.login-card p{text-align:center; margin:6px 0 14px}
+.or{text-align:center; margin:16px 0 6px; color:var(--mute); font-family:var(--disp); font-size:17px; letter-spacing:.06em}
+.linkbtn{display:block; margin:14px auto 0; background:none; border:0; color:var(--ink); text-decoration:underline; cursor:pointer; font:inherit; font-size:14px}
+#loginMsg{min-height:20px; text-align:center; font-size:14px; margin-top:8px; color:var(--bad)}
+.results h2{text-align:center; margin:4px 0 0}
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); gap:10px; margin:14px 0}
+.stat{background:rgba(255,255,255,.55); border:1px solid var(--glass-line); border-radius:16px; padding:10px 8px; text-align:center}
+.stat .n{font-family:var(--disp); font-size:34px; line-height:1.1}
+.quote{margin:16px 0; padding:14px 16px; border-radius:16px; background:var(--hi); color:var(--onhi); font-size:17px; text-align:center; font-weight:600}
+details{margin-top:12px}
+summary{cursor:pointer; font-family:var(--disp); font-size:19px; letter-spacing:.04em}
+
+/* viewer, sheet, toast */
+#viewer{position:fixed; inset:0; z-index:40; display:none; flex-direction:column; background:#eceaf2; padding-top:env(safe-area-inset-top,0px)}
+#viewer.on{display:flex}
+#viewer .bar{display:flex; gap:10px; align-items:center; padding:10px 14px; background:var(--glass); border-bottom:1px solid var(--glass-line)}
+#viewer .bar b{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+#pages{flex:1; overflow:auto; padding:10px}
+#pages canvas{display:block; width:100%; max-width:900px; margin:0 auto 10px; background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.25)}
+#sheet{position:fixed; inset:0; z-index:30; display:none; align-items:center; justify-content:center; padding:16px; background:rgba(40,30,70,.3); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
+#sheet.on{display:flex}
+#sheet .card{width:100%; max-width:440px; background:rgba(255,255,255,.8); margin:0}
+#toast{
+  position:fixed; left:50%; transform:translateX(-50%); bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  background:var(--ink); color:#fff; padding:10px 18px; border-radius:999px; font-size:14px; z-index:70; display:none; max-width:90%; text-align:center;
+}
+
+/* ===== v2: inputs, header timer, segmented control ===== */
+input[type=tel],input[type=time],input[type=datetime-local]{
+  font:inherit; font-size:15px; color:var(--ink); background:rgba(255,255,255,.55);
+  border:1px solid var(--glass-line); border-radius:12px; padding:8px 10px; max-width:100%;
+}
+input[type=tel]{width:100%}
+#pomoBtn{font-family:var(--disp); font-size:20px; letter-spacing:.05em; padding:7px 16px; border-radius:999px; border:1px solid var(--glass-line); background:var(--glass); color:var(--ink); cursor:pointer; -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px)}
+.seg{display:flex; gap:6px; margin:12px 0; background:rgba(255,255,255,.45); border-radius:999px; padding:4px; border:1px solid var(--glass-line)}
+.seg button{flex:1; border:0; background:none; font-family:var(--disp); font-size:18px; letter-spacing:.05em; padding:7px 4px; border-radius:999px; color:var(--ink); cursor:pointer}
+.seg button.on{background:var(--segc,var(--btn)); color:#fff}
+@media (max-width:480px){ .tab{font-size:13px; letter-spacing:.03em; padding:0 1px} }
+
+/* ===== pomodoro ===== */
+#pomo{position:fixed; inset:0; z-index:35; display:none; align-items:center; justify-content:center; padding:16px; background:rgba(40,30,70,.3); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
+#pomo.on{display:flex}
+.pomo-card{width:100%; max-width:380px; margin:0; text-align:center}
+#pomoTime{font-family:var(--disp); font-size:104px; line-height:1; letter-spacing:.02em; margin:6px 0}
+
+/* ===== planner (pink, ribbons) ===== */
+.folder[data-tab=plan] .body{background-image:radial-gradient(rgba(255,255,255,.55) 2px, transparent 2.5px); background-size:22px 22px}
+.pl{--pk:#ff6fae; --pk2:#ffc4de; --pk3:#fff1f7; --pkd:#c2185b; --pt:#5a2040; --segc:var(--pk)}
+.pl-top{display:flex; align-items:center; gap:10px}
+.pl-top svg{flex:none}
+.bubble{position:relative; background:#fff; border:2px solid var(--pk2); color:var(--pt); border-radius:18px; padding:9px 13px; font-size:14px; flex:1}
+.bubble::before{content:""; position:absolute; left:-9px; top:50%; margin-top:-7px; border:7px solid transparent; border-right-color:var(--pk2); border-left:0}
+.ribbon{position:relative; isolation:isolate; display:inline-block; background:var(--pk); color:#fff; font-family:var(--disp); font-size:24px; letter-spacing:.06em; padding:3px 26px; margin:6px 14px}
+.ribbon::before,.ribbon::after{content:""; position:absolute; top:7px; width:20px; height:100%; background:var(--pkd); z-index:-1}
+.ribbon::before{left:-14px; clip-path:polygon(100% 0,100% 100%,0 100%,35% 50%,0 0)}
+.ribbon::after{right:-14px; clip-path:polygon(0 0,100% 0,65% 50%,100% 100%,0 100%)}
+.ribbon.sm{font-size:19px; padding:1px 20px}
+.cal{background:rgba(255,255,255,.6); border:2px dashed var(--pk2); border-radius:22px; padding:10px 10px 12px}
+.cal-nav{display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:8px}
+.cal-nav .ribbon{margin-top:2px; margin-bottom:2px}
+.nav-btn{width:40px; height:40px; border-radius:50%; border:2px solid var(--pk2); background:#fff; color:var(--pkd); font-size:22px; line-height:1; cursor:pointer; padding:0}
+.dow,.days{display:grid; grid-template-columns:repeat(7,1fr); gap:4px}
+.dow span{text-align:center; font-family:var(--disp); color:var(--pkd); font-size:16px}
+.cday{aspect-ratio:1/1; border-radius:12px; border:1px solid transparent; background:rgba(255,255,255,.8); font:inherit; font-size:14px; color:var(--pt); cursor:pointer; padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0}
+.cday.empty{visibility:hidden}
+.cday.today{background:var(--pk2); font-weight:700}
+.cday.sel{background:var(--pk); color:#fff; border-color:var(--pkd)}
+.cday .dots{font-size:10px; line-height:1; min-height:10px; margin-top:2px; color:var(--pkd); letter-spacing:1px}
+.cday.sel .dots{color:#fff}
+.dayhead{text-align:center; margin:10px 0 0}
+.entry{display:flex; align-items:center; gap:10px; background:#fff; border:2px solid var(--pk2); border-radius:16px; padding:9px 11px; margin:8px 0; color:var(--pt)}
+.entry small{color:#8a5a73}
+.entry input[type=checkbox]{accent-color:var(--pk); width:22px; height:22px; flex:none}
+.entry.done .t{text-decoration:line-through; opacity:.55}
+.entry.soon{border-color:var(--pk)}
+.entry.late{border-color:#e11d48; background:#fff0f3}
+.entry .col{display:flex; flex-direction:column; gap:6px; align-items:flex-end}
+.x2{width:28px; height:28px; border-radius:50%; border:1px solid var(--pk2); background:#fff; color:var(--pkd); cursor:pointer; padding:0; font-size:13px}
+.pl .card{background:rgba(255,255,255,.7); border:2px solid var(--pk2); color:var(--pt)}
+.pl .card .mute,.pl small{color:#8a5a73}
+.pl button.b{background:var(--pk); border-color:var(--pk2)}
+.pl button.b.alt{background:#fff; color:var(--pkd); border-color:var(--pk2)}
+.pl input[type=text],.pl input[type=time],.pl input[type=datetime-local],.pl select{background:#fff; border:2px solid var(--pk2); color:var(--pt)}
+.pl .progress{background:var(--pk3)} .pl .progress i{background:var(--pk)}
+.addbox .row{margin-top:8px}
+
+/* ===== dark mode ===== */
+html[data-theme=dark]{color-scheme:dark; --ink:#f3effc; --mute:#b9b2d4; --red:#ff6b70; --btn:#5b94c4; --bad:#ff9a9a; --ok:#72e8a6; --glass:rgba(255,255,255,.1); --glass-line:rgba(255,255,255,.2)}
+html[data-theme=dark] body{background:#120f22}
+html[data-theme=dark] body::before{background:
+  radial-gradient(circle at 12% 18%, rgba(190,90,170,.35), transparent 42%),
+  radial-gradient(circle at 88% 12%, rgba(80,110,210,.35), transparent 40%),
+  radial-gradient(circle at 70% 92%, rgba(190,150,60,.25), transparent 45%),
+  radial-gradient(circle at 15% 88%, rgba(60,150,120,.3), transparent 40%), #120f22}
+html[data-theme=dark] #login{background:
+  radial-gradient(circle at 12% 18%, rgba(190,90,170,.35), transparent 42%),
+  radial-gradient(circle at 88% 12%, rgba(80,110,210,.35), transparent 40%),
+  radial-gradient(circle at 70% 92%, rgba(190,150,60,.25), transparent 45%), #120f22}
+html[data-theme=dark] header .pa,html[data-theme=dark] .loginlogo .pa{color:#fff}
+html[data-theme=dark] .folder{background:linear-gradient(160deg, rgba(var(--c),.42), rgba(var(--c),.2)), #1b1631; border-color:rgba(255,255,255,.18); box-shadow:0 10px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.15)}
+html[data-theme=dark] .tab{background:rgba(var(--c),.5); border-color:rgba(255,255,255,.2)}
+html[data-theme=dark] .folder.front .tab{background:rgba(var(--c),.72); box-shadow:inset 0 2px 0 rgba(255,255,255,.25)}
+html[data-theme=dark] button.b.alt,html[data-theme=dark] label.b.alt,html[data-theme=dark] button.b.danger,html[data-theme=dark] select,html[data-theme=dark] #pomoBtn{background:rgba(255,255,255,.12)}
+html[data-theme=dark] input[type=text],html[data-theme=dark] input[type=password],html[data-theme=dark] input[type=tel],html[data-theme=dark] input[type=time],html[data-theme=dark] input[type=datetime-local],html[data-theme=dark] textarea{background:rgba(255,255,255,.1)}
+html[data-theme=dark] option{background:#241d3d; color:#f3effc}
+html[data-theme=dark] .x{background:rgba(30,25,50,.85)}
+html[data-theme=dark] .progress{background:rgba(255,255,255,.15)}
+html[data-theme=dark] .stat,html[data-theme=dark] .seg{background:rgba(255,255,255,.1)}
+html[data-theme=dark] #viewer{background:#17132a}
+html[data-theme=dark] #sheet .card{background:rgba(35,28,60,.92)}
+html[data-theme=dark] .opt.ok{background:rgba(60,160,100,.5)}
+html[data-theme=dark] .opt.bad{background:rgba(200,80,80,.5)}
+html[data-theme=dark] .folder[data-tab=plan] .body{background-image:radial-gradient(rgba(255,255,255,.1) 2px, transparent 2.5px)}
+html[data-theme=dark] .pl{--pt:#ffe4f1; --pk2:rgba(255,150,200,.45); --pk3:rgba(255,255,255,.1)}
+html[data-theme=dark] .bubble,html[data-theme=dark] .entry,html[data-theme=dark] .x2,html[data-theme=dark] .nav-btn{background:rgba(255,255,255,.1); color:var(--pt)}
+html[data-theme=dark] .cal{background:rgba(255,255,255,.07)}
+html[data-theme=dark] .cday{background:rgba(255,255,255,.1); color:var(--pt)}
+html[data-theme=dark] .cday.today{background:rgba(255,111,174,.4)}
+html[data-theme=dark] .cday.sel{background:var(--pk)}
+html[data-theme=dark] .entry small,html[data-theme=dark] .pl .card .mute,html[data-theme=dark] .pl small{color:#e4b9d0}
+html[data-theme=dark] .entry.late{background:rgba(225,29,72,.22)}
+html[data-theme=dark] .pl .card{background:rgba(255,255,255,.08)}
+html[data-theme=dark] .pl button.b.alt,html[data-theme=dark] .pl input[type=text],html[data-theme=dark] .pl input[type=time],html[data-theme=dark] .pl input[type=datetime-local],html[data-theme=dark] .pl select{background:rgba(255,255,255,.1); color:var(--pt)}
+html[data-theme=dark] .pl .progress{background:rgba(255,255,255,.12)}
+html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:#ff9cc8}
+
+/* ===== v2 fixes: no wrapping on small phones ===== */
+#pomoBtn{white-space:nowrap; flex:none}
+.ribbon{white-space:nowrap}
+@media (max-width:480px){
+  #pomoBtn{font-size:16px; padding:6px 12px}
+  header h1{font-size:46px}
+  .cal-nav .ribbon{font-size:20px; padding:3px 16px; margin-left:10px; margin-right:10px}
+  .ribbon::before{left:-10px} .ribbon::after{right:-10px}
+}
+
+/* ===== topic folders in Cards ===== */
+.fgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:10px}
+.fold{position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; text-align:center; padding:14px 8px 12px; font:inherit; color:var(--ink); cursor:pointer; background:var(--glass); border:1px solid var(--glass-line); border-radius:20px; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:0 4px 16px rgba(27,35,64,.08)}
+.fold b{font-size:14px; line-height:1.25; margin-top:6px; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden}
+.fold .due{position:absolute; top:8px; right:8px; background:var(--hi); color:var(--onhi); font-family:var(--disp); font-size:13px; letter-spacing:.04em; border-radius:999px; padding:0 8px}
+.fold:hover{transform:translateY(-2px)}
+</style>
+</head>
+<body>
+
+<header><h1 aria-label="Padayon"><span class="pa">PA</span><span class="day">DAYON</span></h1><button id="pomoBtn" data-act="pomo" aria-label="Open focus timer">🍅 Focus</button></header>
+
+<div class="stack" id="stack">
+  <section class="folder" data-tab="files" style="--c:238,152,214;--i:0"><button class="tab">Files</button><div class="body" id="v-files"></div></section>
+  <section class="folder" data-tab="cards" style="--c:120,163,232;--i:1"><button class="tab">Cards</button><div class="body" id="v-cards"></div></section>
+  <section class="folder" data-tab="quiz"  style="--c:246,210,120;--i:2"><button class="tab">Quiz</button><div class="body" id="v-quiz"></div></section>
+  <section class="folder" data-tab="plan"  style="--c:255,180,205;--i:3"><button class="tab">Planner</button><div class="body" id="v-plan"></div></section>
+  <section class="folder" data-tab="set"   style="--c:150,215,175;--i:4"><button class="tab">Settings</button><div class="body" id="v-set"></div></section>
+</div>
+
+<div id="viewer">
+  <div class="bar"><b id="vtitle"></b><button class="b alt" data-act="closeViewer">Close</button></div>
+  <div id="pages"></div>
+</div>
+<div id="pomo" role="dialog" aria-label="Focus timer"><div class="card pomo-card">
+  <div class="row"><b class="grow" style="font-family:var(--disp);font-size:26px;font-weight:400;text-align:left">Focus timer</b><button class="b alt" data-act="pomo">Close</button></div>
+  <div class="seg"><button data-pm="focus" data-act="pomoMode" data-m="focus">Focus 25</button><button data-pm="short" data-act="pomoMode" data-m="short">Break 5</button><button data-pm="long" data-act="pomoMode" data-m="long">Long 15</button></div>
+  <div id="pomoTime">25:00</div>
+  <div class="progress"><i id="pomoBar" style="width:0"></i></div>
+  <div class="row" style="justify-content:center;margin-top:12px"><button class="b" id="pomoGo" data-act="pomoGo">Start</button><button class="b alt" data-act="pomoReset">Reset</button></div>
+  <p class="mute" style="margin:12px 0 4px">Rounds done today: <span id="pomoCount"></span></p>
+  <small>Study for 25 minutes, then rest. After four rounds, take a long break. The timer keeps running if you close this window.</small>
+</div></div>
+<div id="sheet"><div class="card" id="sheetBody"></div></div>
+<div id="login" role="dialog" aria-label="Sign in">
+  <div class="card login-card">
+    <h1 class="loginlogo" aria-label="Padayon"><span class="pa">PA</span><span class="day">DAYON</span></h1>
+    <p class="mute">Enter your phone number to sign in. We will text you a code. Your files, flashcards and quizzes stay yours.</p>
+    <div id="phoneStep">
+      <input type="tel" id="phone" placeholder="09XX XXX XXXX or +63 9XX XXX XXXX" autocomplete="tel">
+      <button class="b alt" data-act="sendCode" id="sendCode">Send code</button>
+    </div>
+    <div id="codeStep" style="display:none">
+      <input type="text" id="code" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code">
+      <button class="b" data-act="verifyCode">Verify and sign in</button>
+    </div>
+    <div id="loginMsg" role="status"></div>
+    <button class="linkbtn" data-act="guest">Continue without an account</button>
+  </div>
+</div>
+<div id="toast"></div>
+<input type="file" id="upload" accept="application/pdf,.pdf" multiple hidden>
+<input type="file" id="importer" accept="application/json,.json" hidden>
+
+<script src="vendor/firebase-app-compat.js"></script>
+<script src="vendor/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="vendor/pdf.min.js"></script>
+<script>
+/* ---------- tiny helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+let toastT;
+function toast(m, ms = 2800) { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(toastT); toastT = setTimeout(() => t.style.display = 'none', ms); }
+const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+
+/* ---------- storage (IndexedDB) ---------- */
+let db;
+function openDB(name = 'studybox') {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(name, 2);
+    r.onupgradeneeded = () => { ['files', 'cards', 'quiz', 'plans', 'tasks'].forEach(n => { if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id', autoIncrement: true }); }); };
+    r.onsuccess = () => { db = r.result; res(); };
+    r.onerror = () => rej(r.error);
+  });
+}
+const store = (s, m = 'readonly') => db.transaction(s, m).objectStore(s);
+const rq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+const all = s => rq(store(s).getAll());
+const get = (s, id) => rq(store(s).get(id));
+const put = (s, o) => rq(store(s, 'readwrite').put(o));
+const del = (s, id) => rq(store(s, 'readwrite').delete(id));
+
+/* ---------- PDF reading ---------- */
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+function needPdfJs() { if (!window.pdfjsLib) { toast('PDF reader could not be loaded. Reload the app and try again.'); return true; } return false; }
+
+async function extractText(f) {
+  if (f.text && f.pages && f.heads) return f.text;
+  if (needPdfJs()) return '';
+  const pdf = await pdfjsLib.getDocument({ data: await f.blob.arrayBuffer() }).promise;
+  const pages = [], perPage = [], sizes = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const p = await pdf.getPage(i);
+    const c = await p.getTextContent();
+    const items = c.items.filter(x => x.str && x.str.trim());
+    perPage.push(items);
+    items.forEach(x => sizes.push(Math.abs(x.transform ? x.transform[3] : x.height || 0)));
+    pages.push(c.items.map(x => x.str).join(' ').replace(/\s+/g, ' ').trim());
+  }
+  // headings = noticeably larger text than the usual body size
+  const sorted = sizes.slice().sort((a, b) => a - b), body = sorted[Math.floor(sorted.length / 2)] || 0;
+  let heads = [];
+  perPage.forEach((items, pi) => {
+    let cur = '';
+    const flush = () => { const t = cur.replace(/\s+/g, ' ').trim(); if (t.length >= 3 && t.length <= 70 && !/^[\d\W]+$/.test(t)) heads.push({ page: pi + 1, text: t }); cur = ''; };
+    items.forEach(x => { const s = Math.abs(x.transform ? x.transform[3] : 0); if (body && s >= body * 1.2) cur += ' ' + x.str; else flush(); });
+    flush();
+  });
+  const seen = {}; heads.forEach(x => seen[x.text] = (seen[x.text] || 0) + 1);
+  heads = heads.filter(x => seen[x.text] <= Math.max(3, pages.length * 0.4));   // drop running headers repeated on most pages
+  f.pages = pages; f.heads = heads;
+  f.text = pages.join(' ').trim();
+  await put('files', f);
+  return f.text;
+}
+
+// one topic name per page, from the PDF's own headings (or page groups when there are none)
+function topicsByPage(f) {
+  const n = (f.pages || []).length, base = (f.name || 'PDF').replace(/\.pdf$/i, '').slice(0, 24), heads = f.heads || [];
+  const out = new Array(n).fill('');
+  const distinct = [...new Set(heads.map(x => x.text))];
+  if (heads.length && distinct.length <= 12) {
+    let cur = heads[0].text;
+    for (let i = 0; i < n; i++) { const hs = heads.filter(x => x.page === i + 1); if (hs.length) cur = hs[0].text; out[i] = cur; }
+  } else {
+    const size = Math.max(3, Math.ceil(n / 8));
+    for (let i = 0; i < n; i += size) {
+      const b = Math.min(n, i + size), hd = heads.find(x => x.page > i && x.page <= b);
+      const name = hd ? hd.text.slice(0, 30) : base + ' · pages ' + (i + 1) + '–' + b;
+      for (let k = i; k < b; k++) out[k] = name;
+    }
+  }
+  return out;
+}
+
+async function openViewer(id) {
+  if (needPdfJs()) return;
+  const f = await get('files', id);
+  $('#vtitle').textContent = f.name;
+  const box = $('#pages'); box.innerHTML = '<p class="empty">Opening…</p>';
+  $('#viewer').classList.add('on');
+  try {
+    const pdf = await pdfjsLib.getDocument({ data: await f.blob.arrayBuffer() }).promise;
+    box.innerHTML = '';
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (!$('#viewer').classList.contains('on')) break;
+      const page = await pdf.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(1100 / base.width, 2) * ratio;
+      const vp = page.getViewport({ scale });
+      const cv = document.createElement('canvas');
+      cv.width = vp.width; cv.height = vp.height;
+      box.appendChild(cv);
+      await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    }
+  } catch (e) { box.innerHTML = '<p class="empty">Could not open this PDF.</p>'; }
+}
+
+/* ---------- offline generation (no AI) ---------- */
+const STOP = new Set('about above after again against because before being below between could during further having itself other should their there these they this those through under until which while would where what when your with from have that than then into only over such very will also been were does each more most some same both however therefore example figure table chapter'.split(' '));
+const PRON = new Set(['this', 'that', 'it', 'there', 'these', 'those', 'which', 'he', 'she', 'they', 'we', 'you', 'who', 'what', 'here']);
+const DEF = /^(?:(?:An?|The)\s+)?([A-Za-z][A-Za-z\-]*(?:\s[A-Za-z\-]+){0,4}?)\s+(is|are|refers to|means|is defined as|are defined as)\s+(.{15,})$/;
+
+function splitSentences(t) {
+  return t.replace(/\s+/g, ' ').split(/(?<=[.!?])\s+(?=[A-Z0-9])/).map(s => s.trim()).filter(s => s.length >= 40 && s.length <= 260 && !/\.{4,}/.test(s));
+}
+
+function offlineGenerate(text, pages, topics) {
+  const freq = {};
+  (text.toLowerCase().match(/[a-z]{4,}/g) || []).forEach(w => freq[w] = (freq[w] || 0) + 1);
+  let items = [];
+  const src = pages && pages.length ? pages.flatMap((t, i) => splitSentences(t).map(s => ({ s, page: i + 1 }))) : splitSentences(text).map(s => ({ s, page: 0 }));
+  for (const { s, page } of src) {
+    const m = s.match(DEF);
+    if (m && !PRON.has(m[1].split(' ')[0].toLowerCase())) {
+      items.push({ kind: 'def', term: m[1].trim(), verb: m[2], rest: m[3].replace(/[.!?]$/, ''), s, page });
+      continue;
+    }
+    const words = (s.match(/[A-Za-z]{6,}/g) || []).filter(w => !STOP.has(w.toLowerCase()));
+    if (!words.length) continue;
+    words.sort((a, b) => (freq[a.toLowerCase()] - freq[b.toLowerCase()]) || (b.length - a.length));
+    items.push({ kind: 'cloze', word: words[0], s, page });
+  }
+  const cap = (arr, n) => { if (arr.length <= n) return arr; const step = arr.length / n; return Array.from({ length: n }, (_, i) => arr[Math.floor(i * step)]); };
+  const target = Math.min(200, Math.max(20, (pages ? pages.length : 5) * 4));   // grows with the PDF, sampled evenly from first page to last
+  items = cap(items, target);
+
+  const cards = items.map(it => it.kind === 'def'
+    ? { q: 'Define: ' + it.term, a: it.term + ' ' + it.verb + ' ' + it.rest, page: it.page, topic: topics && topics[it.page - 1] }
+    : { q: it.s.replace(it.word, '_____'), a: it.word, page: it.page, topic: topics && topics[it.page - 1] });
+
+  const quiz = [];
+  const answerOf = it => it.kind === 'def' ? it.term : it.word;
+  for (const it of items) {
+    const ans = answerOf(it);
+    const pool = [...new Set(items.filter(o => o.kind === it.kind).map(answerOf))].filter(x => x.toLowerCase() !== ans.toLowerCase());
+    if (pool.length < 3) continue;
+    pool.sort((a, b) => (Math.abs(a.length - ans.length) + Math.random() * 3) - (Math.abs(b.length - ans.length) + Math.random() * 3));
+    const options = shuffle([ans, ...pool.slice(0, 3)]);
+    quiz.push({
+      type: 'multiple-choice',
+      q: it.kind === 'def' ? 'Which term fits this description? "' + it.rest + '"' : 'Fill in the blank: ' + it.s.replace(it.word, '_____'),
+      options, answer: options.indexOf(ans), explain: it.s + (it.page ? ' (page ' + it.page + ')' : ''), page: it.page
+    });
+  }
+  for (const { s, page } of src) {
+    const match = s.match(/^(.{3,100}?)\s+(?:include|includes|consist of|consists of|comprise|comprises|are)\s+(.{10,})$/i);
+    if (!match) continue;
+    const answers = match[2].replace(/[.!?]$/, '').replace(/,\s*(?:and|or)\s+/gi, ', ').split(/,\s*|\s+(?:and|or)\s+/i)
+      .map(x => x.trim().replace(/^["'“”‘’]+|["'“”‘’]+$/g, '').replace(/[.!?;:]+$/, '').trim()).filter(Boolean);
+    const unique = [...new Set(answers.map(x => x.toLowerCase()))];
+    if (unique.length < 3 || unique.length > 8 || unique.length !== answers.length) continue;
+    quiz.push({
+      type: 'enumeration', q: 'Enumerate ' + match[1].trim().replace(/^the\b/i, 'the').replace(/^([A-Z])/, (_, c) => c.toLowerCase()) + ':',
+      answer: answers, explain: s + (page ? ' (page ' + page + ')' : ''), page
+    });
+  }
+  for (const it of items) {
+    const answer = answerOf(it);
+    quiz.push({
+      type: 'identification',
+      q: it.kind === 'def' ? 'Identify the term: ' + it.rest : 'Identify the missing word: ' + it.s.replace(it.word, '_____'),
+      answer, explain: it.s + (it.page ? ' (page ' + it.page + ')' : ''), page: it.page
+    });
+  }
+  return { cards, quiz };
+}
+
+/* ---------- AI generation (optional, your own API key) ---------- */
+const AI_RULES = `You make study flashcards and quizzes from a student's uploaded PDF. The PDF text below is the primary and authoritative source.
+
+ANALYSE
+- Cover the whole document, not just the first pages. Give more cards and questions to major concepts and fewer to minor details, proportionally across the pages.
+- Prioritise key terms, definitions, principles, processes, classifications, formulas, dates and facts. Notice headings, bold text, summaries, tables and repeated concepts.
+
+QUIZ QUESTIONS
+- Base every question strictly on information supported by the PDF, with a correct answer that can be verified in it.
+- Mix three formats: multiple choice, identification (one short text answer), and enumeration (a specific list of two to eight items). Include the "type" field on every question, using "multiple-choice", "identification", or "enumeration".
+- Multiple choice: 4 plausible distractors and exactly one correct option; include "options" and an integer "answer" index.
+- Identification: ask for one specific term, name, or short fact; include "answer" as a string and omit "options".
+- Enumeration: ask for a clearly bounded list stated in the PDF; include "answer" as an array of strings and omit "options". Do not invent or infer list members.
+- Clear, specific, grammatical. No ambiguous wording, no outside knowledge, no repeated questions on the same fact.
+- Mix recall, comprehension and application when the source supports it.
+- Give a brief explanation grounded in the PDF and the page number it comes from.
+
+FLASHCARDS
+- One clear question or concept on the front, a concise accurate answer on the back, one learning objective per card.
+- Keep technical terms and the original meaning. Enough context to understand the card on its own. No duplicates, no minor trivia.
+
+SOURCE ACCURACY
+- Never invent facts, definitions, examples or statistics. Do not change the meaning of the source and do not silently correct it with outside knowledge.
+- If the PDF is contradictory, unclear or possibly wrong, do not guess: leave that item out and describe the problem in "notes".
+- If an answer cannot be verified from the text, leave the item out.
+
+QUALITY CHECK before you answer: every question, answer key and card is supported by the PDF; page numbers are right; nothing is repetitive; important topics are covered.
+
+There is no fixed number: write enough flashcards and quiz questions to cover every important idea in this excerpt, from its first page to its last (up to about 20 of each). Accuracy and coverage matter more than quantity.
+Respond with JSON only, no markdown fences, in exactly this shape:
+{"cards":[{"q":"","a":"","page":1,"topic":""}],"quiz":[{"type":"multiple-choice","q":"","options":["","","",""],"answer":0,"explain":"","page":1},{"type":"identification","q":"","answer":"","explain":"","page":1},{"type":"enumeration","q":"","answer":["",""],"explain":"","page":1}],"notes":["any unclear or contradictory passages, with page numbers"]}
+"For multiple-choice questions, answer is the index (0-3) of the correct option. For identification, answer is a string. For enumeration, answer is an array of strings. 'page' is the PDF page number the item comes from. 'topic' is a short topic name (2 to 5 words) for the card, taken from the document's own headings, so cards about the same subject share exactly the same topic text.`;
+
+async function aiGenerate(f, onProgress) {
+  const key = localStorage.getItem(keyName());
+  if (!key) throw new Error('Turn on Smart mode in Settings first.');
+  const pages = f.pages || [f.text];
+  // split the whole PDF into parts so every page is covered, however long it is
+  const chunks = []; let cur = '';
+  pages.forEach((t, i) => {
+    if (!t || t.length < 20) return;
+    const piece = '[Page ' + (i + 1) + ']\n' + t + '\n\n';
+    if (cur && cur.length + piece.length > 12000) { chunks.push(cur); cur = ''; }
+    cur += piece;
+  });
+  if (cur) chunks.push(cur);
+  const merged = { cards: [], quiz: [], notes: [] }, seenQ = new Set();
+  let failed = 0;
+  for (let k = 0; k < chunks.length; k++) {
+    if (onProgress) onProgress(k + 1, chunks.length);
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 6000, messages: [{ role: 'user', content: AI_RULES + '\n\nThis is part ' + (k + 1) + ' of ' + chunks.length + ' of the document.\n\nPDF TEXT:\n' + chunks[k] }] })
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error((data.error && data.error.message) || 'AI request failed');
+      const raw = data.content.filter(b => b.type === 'text').map(b => b.text).join('').replace(/```json|```/g, '').trim();
+      const out = JSON.parse(raw);
+      (out.cards || []).filter(c => c.q && c.a).forEach(c => { const id = 'c' + c.q.toLowerCase(); if (!seenQ.has(id)) { seenQ.add(id); merged.cards.push(c); } });
+      (out.quiz || []).filter(q => {
+        if (!q.q) return false;
+        if (q.type === 'identification') return typeof q.answer === 'string' && !!q.answer.trim();
+        if (q.type === 'enumeration') return Array.isArray(q.answer) && q.answer.length >= 2 && q.answer.length <= 8 && q.answer.every(a => typeof a === 'string' && a.trim());
+        return (!q.type || q.type === 'multiple-choice') && Array.isArray(q.options) && q.options.length >= 2 && Number.isInteger(q.answer) && q.options[q.answer] != null;
+      }).forEach(q => {
+        if (!q.type) q.type = 'multiple-choice';
+        const id = 'q' + q.q.toLowerCase();
+        if (!seenQ.has(id)) { seenQ.add(id); merged.quiz.push(q); }
+      });
+      merged.notes.push(...(out.notes || []).filter(Boolean));
+    } catch (e) { failed++; if (failed === chunks.length) throw e; }
+  }
+  if (failed) merged.notes.push(failed + ' part(s) of the PDF could not be processed, so coverage is incomplete. Try again.');
+  return merged;
+}
+
+async function generate(fileId, mode) {
+  const f = await get('files', fileId);
+  toast(mode === 'ai' ? 'Reading the PDF and asking AI…' : 'Reading the PDF…', 60000);
+  try {
+    const text = await extractText(f);
+    const topics = topicsByPage(f);
+    if (text.length < 200) { toast('This PDF has no readable text, so no study material was made. Please upload a text-based PDF. Scanned pages are not supported yet.', 7000); return; }
+    const blank = (f.pages || []).map((t, i) => (t && t.length > 20) ? 0 : i + 1).filter(Boolean);
+    const out = mode === 'ai' ? await aiGenerate(f, (k, n) => toast('Making questions… part ' + k + ' of ' + n, 120000)) : offlineGenerate(text, f.pages, topics);
+    const cards = await all('cards'), quiz = await all('quiz');
+    let nc = 0, nq = 0;
+    for (const c of out.cards) {
+      if (cards.some(x => x.fileId === fileId && x.q === c.q)) continue;
+      await put('cards', { fileId, q: c.q, a: c.a, page: c.page || 0, topic: String(c.topic || '').trim().slice(0, 40) || topics[(c.page || 1) - 1] || '', box: 0, due: 0 }); nc++;
+    }
+    for (const q of out.quiz) {
+      if (quiz.some(x => x.fileId === fileId && x.q === q.q)) continue;
+      await put('quiz', { fileId, q: q.q, type: q.type || 'multiple-choice', options: q.options, answer: q.answer, explain: (q.explain || '') + (q.page && !/page \d/i.test(q.explain || '') ? ' (page ' + q.page + ')' : ''), page: q.page || 0 }); nq++;
+    }
+    let msg = nc || nq ? `Added ${nc} flashcards and ${nq} quiz questions.` : 'Nothing new to add from this file.';
+    if (blank.length) msg += ` Page${blank.length > 1 ? 's' : ''} ${blank.slice(0, 6).join(', ')}${blank.length > 6 ? '…' : ''} had no readable text and ${blank.length > 1 ? 'were' : 'was'} skipped.`;
+    if (out.notes && out.notes.length) {
+      const fresh = await get('files', fileId);
+      fresh.notes = (fresh.notes ? fresh.notes + '\n\n' : '') + 'Flagged for review:\n- ' + out.notes.join('\n- ');
+      await put('files', fresh);
+      msg += ` ${out.notes.length} unclear passage(s) were flagged in this file's notes.`;
+    }
+    toast(msg, 8000);
+  } catch (e) { toast('Could not generate: ' + e.message, 6000); }
+  render();
+}
+
+/* ---------- Files folder ---------- */
+let sortBy = 'new', selMode = false;
+const sel = new Set();
+async function renderFiles() {
+  const [files, cards, quiz] = await Promise.all([all('files'), all('cards'), all('quiz')]);
+  const sorters = { new: (a, b) => b.added - a.added, name: (a, b) => a.name.localeCompare(b.name) };
+  files.sort(sorters[sortBy]);
+  for (const id of [...sel]) if (!files.some(f => f.id === id)) sel.delete(id);
+  const groups = {};
+  files.forEach(f => (groups[f.folder || ''] = groups[f.folder || ''] || []).push(f));
+  const names = Object.keys(groups).sort((a, b) => a === '' ? 1 : b === '' ? -1 : a.localeCompare(b));
+  let html = `<div class="row" style="justify-content:space-between">
+    <label class="b" for="upload">Add files +</label>
+    ${files.length ? `<button class="b alt" data-act="toggleSel">${selMode ? 'Done' : 'Select'}</button>` : ''}
+    ${selMode ? `<button class="b danger" data-act="delSelected" ${sel.size ? '' : 'disabled'}>Delete (${sel.size})</button>` : ''}
+    <select id="sort" aria-label="Sort files"><option value="new"${sortBy === 'new' ? ' selected' : ''}>Sort: Newest</option><option value="name"${sortBy === 'name' ? ' selected' : ''}>Sort: A–Z</option></select>
+  </div>`;
+  if (!files.length) html += '<p class="empty">No files yet.<br>Tap <b>Add files</b> to upload a PDF. Each one shows up here as a widget.</p>';
+  for (const g of names) {
+    if (names.length > 1 || g) html += `<div class="folderlabel">${esc(g || 'No folder')}</div>`;
+    html += '<div class="grid">';
+    for (const f of groups[g]) {
+      const nc = cards.filter(c => c.fileId === f.id).length, nq = quiz.filter(q => q.fileId === f.id).length;
+      const on = sel.has(f.id);
+      html += `<div class="card${on ? ' on' : ''}">
+        ${selMode
+          ? `<input type="checkbox" class="chk" data-act="selone" data-id="${f.id}" aria-label="Select ${esc(f.name)}" ${on ? 'checked' : ''}>`
+          : `<button class="x" data-act="delFile" data-id="${f.id}" aria-label="Delete ${esc(f.name)}" title="Delete">✕</button>`}
+        <span class="badge">PDF</span>
+        <div class="fname">${esc(f.name)}</div>
+        <small>${fmtSize(f.size || f.blob.size)}<br>${nc} cards, ${nq} questions</small>
+        <button class="b alt" data-act="genOff" data-id="${f.id}">Make cards</button>
+        <div class="row"><button class="b grow" data-act="open" data-id="${f.id}">Open</button><button class="b alt" data-act="more" data-id="${f.id}" aria-label="More options">•••</button></div>
+      </div>`;
+    }
+    html += '</div>';
+  }
+  $('#v-files').innerHTML = html;
+  $('#sort').onchange = e => { sortBy = e.target.value; renderFiles(); };
+}
+
+async function openSheet(id) {
+  const f = await get('files', id);
+  const hasKey = !!localStorage.getItem(keyName());
+  $('#sheetBody').innerHTML = `
+    <div class="fname" style="-webkit-line-clamp:3">${esc(f.name)}</div>
+    <small>${f.folder ? 'Folder: ' + esc(f.folder) : 'No folder'}</small>
+    <textarea data-note="${f.id}" placeholder="Your notes on this file…" style="margin-top:10px">${esc(f.notes || '')}</textarea>
+    <div class="row" style="margin-top:10px">
+      <button class="b alt" data-act="rename" data-id="${f.id}">Rename</button>
+      <button class="b alt" data-act="folder" data-id="${f.id}">Set folder</button>
+      ${hasKey ? `<button class="b alt" data-act="genAi" data-id="${f.id}">Smart mode</button>` : ''}
+    </div>
+    <div class="row" style="margin-top:10px;justify-content:space-between">
+      <button class="b danger" data-act="delFile" data-id="${f.id}">Delete</button>
+      <button class="b" data-act="closeSheet">Done</button>
+    </div>`;
+  $('#sheet').classList.add('on');
+}
+const closeSheet = () => $('#sheet').classList.remove('on');
+$('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') closeSheet(); });
+document.addEventListener('change', async e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.note) { const f = await get('files', +t.dataset.note); f.notes = t.value; await put('files', f); toast('Notes saved', 1200); }
+});
+
+$('#upload').addEventListener('change', async e => {
+  const list = [...e.target.files];
+  for (const file of list) {
+    if (!/pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast(file.name + ' is not a PDF.'); continue; }
+    await put('files', { name: file.name, folder: '', notes: '', blob: file, size: file.size, added: Date.now() });
+  }
+  e.target.value = '';
+  if (list.length) toast(list.length + ' file(s) added');
+  render();
+});
+
+/* ---------- session results helpers ---------- */
+const QUOTES = {
+  high: ['Strong session. Knowing it today means you will recall it on exam day. Padayon!',
+         'You put in the effort and it shows. Keep that rhythm going.',
+         'Small reviews like this add up to big results. Well done.'],
+  mid:  ['You are getting there. Every review makes the answers stick a little more.',
+         'Progress counts more than perfection. Come back tomorrow and add to it.',
+         'You are building it up, one session at a time. Padayon!'],
+  low:  ['Getting something wrong is how you learn it for real. Try again when you are ready.',
+         'Every miss shows you what to review next, and that is useful. Padayon!',
+         'Take a breath, look over the misses, and go again. You will see the difference.']
+};
+const pickQuote = pct => { const a = QUOTES[pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low']; return a[Math.floor(Math.random() * a.length)]; };
+const fmtTime = ms => { const s = Math.max(1, Math.round(ms / 1000)); return s < 60 ? s + ' sec' : Math.floor(s / 60) + ' min ' + (s % 60) + ' sec'; };
+const statBox = items => '<div class="stats">' + items.map(([l, v]) => `<div class="stat"><div class="n">${v}</div><small>${l}</small></div>`).join('') + '</div>';
+const quoteBox = q => `<div class="quote">${esc(q)}</div>`;
+const cardStats = () => {
+  const now = Date.now();
+  if (!fc.stats || now - fc.stats.last > 30 * 60000) fc.stats = { start: now, last: now, seen: new Set(), missed: new Set(), got: 0, miss: 0, end: null, quote: null };
+  fc.stats.last = now; return fc.stats;
+};
+
+/* ---------- Cards folder ---------- */
+let deckSel = 'all';
+const fc = { queue: null, flipped: false, stats: null };
+const BOX_DAYS = [0, 1, 2, 4, 8, 16, 30];
+
+/* topic folders inside the Cards folder */
+let cardFolder = null, cardTopics = [], fileNames = {};   // cardFolder: null = folder list, '*' = all cards, else a topic name
+const topicOf = c => c.topic || (fileNames[c.fileId] || '').replace(/\.pdf$/i, '') || 'Unsorted';
+const folderKey = () => 'pd_folders_' + (me ? me.uid : 'guest');
+const extraFolders = () => { try { return JSON.parse(localStorage.getItem(folderKey()) || '[]'); } catch (e) { return []; } };
+const setExtraFolders = a => localStorage.setItem(folderKey(), JSON.stringify([...new Set(a)]));
+async function loadNames() { const fs = await all('files'); fileNames = Object.fromEntries(fs.map(f => [f.id, f.name])); }
+const cardsIn = (cards, folder) => cards.filter(c => folder === '*' || topicOf(c) === folder);
+const FOLDER_COLORS = ['#f29bd0', '#7fa8ee', '#f3d489', '#8fd3a8', '#c4a1f0', '#f5a98c', '#7fd0d8'];
+function folderIcon(name) {
+  let hsh = 0; for (const ch of name) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+  const c = FOLDER_COLORS[hsh % FOLDER_COLORS.length];
+  return `<svg viewBox="0 0 64 52" width="64" height="52" aria-hidden="true"><path d="M4 10Q4 4 10 4H24L30 11H54Q60 11 60 17V42Q60 48 54 48H10Q4 48 4 42Z" fill="${c}" opacity=".8"/><path d="M4 21Q4 16 10 16H54Q60 16 60 21V42Q60 48 54 48H10Q4 48 4 42Z" fill="${c}"/><path d="M4 21Q4 16 10 16H54Q60 16 60 21V25H4Z" fill="#fff" opacity=".3"/></svg>`;
+}
+function addCardForm(def, names) {
+  return `<details><summary>Add a card yourself</summary>
+    <div class="card"><input type="text" id="nq" placeholder="Question"><div style="height:8px"></div><input type="text" id="na" placeholder="Answer"><div style="height:8px"></div>
+    <input type="text" id="nt" list="topicList" placeholder="Folder (type a new name or pick one)" value="${esc(def)}"><datalist id="topicList">${names.map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    <div style="height:10px"></div><button class="b" data-act="addCard">Save card</button></div></details>`;
+}
+
+async function renderCards(rebuild) {
+  const cards = await all('cards'); await loadNames();
+  const now = Date.now();
+  const map = {}; cards.forEach(c => { const t = topicOf(c); (map[t] = map[t] || []).push(c); });
+  extraFolders().forEach(t => { map[t] = map[t] || []; });
+  cardTopics = Object.keys(map).sort((a, b) => a.localeCompare(b));
+  if (cardFolder && cardFolder !== '*' && !map[cardFolder]) cardFolder = null;   // that folder no longer exists
+
+  /* ---- folder list ---- */
+  if (cardFolder === null) {
+    const tile = (label, list, idx) => { const due = list.filter(c => c.due <= now).length;
+      return `<button class="fold" data-act="openFolder" data-f="${idx}">${folderIcon(label)}<b>${esc(label)}</b><small>${list.length} card${list.length === 1 ? '' : 's'}</small>${due ? `<span class="due">${due} due</span>` : ''}</button>`; };
+    let html = `<div class="row" style="margin-bottom:10px"><h2 class="grow" style="margin:0">Topics</h2><button class="b alt sm" data-act="newFolder">+ New folder</button></div>`;
+    if (!cardTopics.length) html += `<p class="empty">No flashcards yet. Add a PDF in <b>Files</b> and tap <b>Make cards</b>. Your cards will be sorted into a folder for each topic.</p>`;
+    else html += `<div class="fgrid">${tile('All cards', cards, '*')}${cardTopics.map((t, i) => tile(t, map[t], i)).join('')}</div>`;
+    html += addCardForm('', cardTopics);
+    $('#v-cards').innerHTML = html;
+    return;
+  }
+
+  /* ---- inside one folder ---- */
+  const inDeck = cardsIn(cards, cardFolder);
+  if (rebuild || !fc.queue) { fc.queue = shuffle(inDeck.filter(c => c.due <= now).map(c => c.id)); fc.flipped = false; }
+  fc.queue = fc.queue.filter(id => inDeck.some(c => c.id === id));
+  if (fc.stats && fc.stats.end && fc.queue.length) fc.stats = null;   // new session after a finished one
+  const cur = fc.queue.length ? inDeck.find(c => c.id === fc.queue[0]) : null;
+  const q = c => esc(c.q).replace(/_____/g, '<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>');
+  let html = `<div class="row"><button class="b alt sm" data-act="closeFolder">‹ Topics</button><b class="grow" style="font-family:var(--disp);font-size:24px;font-weight:400;min-width:0;overflow-wrap:anywhere">${cardFolder === '*' ? 'All cards' : esc(cardFolder)}</b>${cardFolder === '*' ? '' : '<button class="b alt sm" data-act="renameFolder">Rename</button><button class="b danger sm" data-act="delFolder">Delete</button>'}</div>
+    <small style="display:block;margin:6px 0 4px">${fc.queue.length} due, ${inDeck.length} total</small>`;
+  if (cur) {
+    html += `<div class="card fc" data-act="flip" tabindex="0" role="button" aria-label="Flip card"><div class="q">${q(cur)}</div>${fc.flipped ? `<div class="a">${esc(cur.a)}</div>${cur.page ? '<small style="margin-top:10px">Page ' + cur.page + '</small>' : ''}` : '<small style="margin-top:16px">Tap to show the answer</small>'}</div>`;
+    if (fc.flipped) html += `<div class="row"><button class="b danger grow" data-act="miss">Missed it</button><button class="b grow" data-act="got">Got it</button></div>`;
+  } else if (fc.stats && fc.stats.seen.size) {
+    const s = fc.stats, n = s.seen.size, first = n - s.missed.size, pct = Math.round(first / n * 100);
+    s.end = s.end || Date.now(); s.quote = s.quote || pickQuote(pct);
+    html += `<div class="card results"><h2>Session complete</h2>
+      ${statBox([['Cards reviewed', n], ['Right first try', first], ['Needed another look', s.missed.size], ['First-try accuracy', pct + '%'], ['Time', fmtTime(s.end - s.start)]])}
+      ${quoteBox(s.quote)}
+      <div class="row" style="justify-content:center"><button class="b" data-act="studyAll">Study again</button><button class="b alt" data-act="cardsDone">Back to topics</button></div></div>`;
+  } else if (inDeck.length) {
+    html += `<div class="card empty">You're all caught up. Nothing is due right now.<br><br><button class="b" data-act="studyAll">Study all anyway</button></div>`;
+  } else {
+    html += `<p class="empty">This folder is empty. Add a card below, or move cards here from another folder.</p>`;
+  }
+  html += addCardForm(cardFolder === '*' ? '' : cardFolder, cardTopics);
+  html += `<details><summary>All cards in this folder (${inDeck.length})</summary>` + inDeck.map(c => `<div class="card row"><div class="grow"><b>${esc(c.q)}</b><br><small>${esc(c.a)}</small></div><button class="b alt sm" data-act="moveCard" data-id="${c.id}">Move</button><button class="b danger sm" data-act="delCard" data-id="${c.id}">Delete</button></div>`).join('') + `</details>`;
+  $('#v-cards').innerHTML = html;
+}
+
+/* ---------- Quiz folder ---------- */
+let quizDeck = 'all', quizType = 'all';
+// every take: new question order AND new answer order
+const prepQ = q => {
+  if ((q.type || 'multiple-choice') !== 'multiple-choice') return { ...q, type: q.type || 'multiple-choice' };
+  const correct = q.options[q.answer], options = shuffle(q.options);
+  return { ...q, type: 'multiple-choice', options, answer: options.indexOf(correct) };
+};
+const qz = { list: null, i: 0, score: 0, picked: null, wrong: [], start: 0, end: null, quote: null };
+const quizTypeName = type => ({ 'multiple-choice': 'Multiple choice', identification: 'Identification', enumeration: 'Enumeration' })[type] || 'Multiple choice';
+const quizAnswerText = answer => Array.isArray(answer) ? answer.join(', ') : String(answer ?? '');
+const normalizeQuizAnswer = answer => String(answer ?? '').toLowerCase().trim().replace(/^[\s"'“”‘’([{]+|[\s"'“”‘’)\]}.,;:!?]+$/g, '').replace(/\s+/g, ' ');
+function quizAnswersMatch(input, expected, type) {
+  if (type !== 'enumeration') return normalizeQuizAnswer(input) === normalizeQuizAnswer(expected);
+  const submitted = String(input).split(/[,\n;]+/).map(normalizeQuizAnswer).filter(Boolean);
+  const correct = expected.map(normalizeQuizAnswer);
+  return submitted.length === correct.length && new Set(submitted).size === submitted.length &&
+    correct.every(answer => submitted.includes(answer));
+}
+
+async function renderQuiz() {
+  const [quiz, files] = await Promise.all([all('quiz'), all('files')]);
+  let html = '';
+  if (!qz.list) {
+    const deckPool = quiz.filter(q => quizDeck === 'all' || String(q.fileId) === quizDeck);
+    const pool = deckPool.filter(q => quizType === 'all' || (q.type || 'multiple-choice') === quizType);
+    html = `<h2 style="margin-top:0">Test yourself</h2><div class="card">
+      <div class="row"><select id="qdeck" aria-label="Quiz source"><option value="all">All files</option>${files.map(f => `<option value="${f.id}"${String(f.id) === quizDeck ? ' selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
+      <select id="qtype" aria-label="Question format">${[['all', 'All formats'], ['multiple-choice', 'Multiple choice'], ['identification', 'Identification'], ['enumeration', 'Enumeration']].map(([v, label]) => `<option value="${v}"${v === quizType ? ' selected' : ''}>${label}</option>`).join('')}</select>
+</div>
+      <p class="mute">${pool.length} of ${deckPool.length} question(s) in this format. Every matching question is asked in a new random order each time.</p>
+      <button class="b" data-act="startQuiz" ${pool.length ? '' : 'disabled'}>Start quiz</button></div>`;
+    if (!quiz.length) html += '<p class="empty">No questions yet. Add a PDF in <b>Files</b> and tap <b>Make cards</b>.</p>';
+  } else if (qz.i >= qz.list.length) {
+    const n = qz.list.length, wrong = qz.wrong || [], pct = Math.round(qz.score / n * 100);
+    qz.end = qz.end || Date.now(); qz.quote = qz.quote || pickQuote(pct);
+    const dur = qz.end - qz.start;
+    html = `<div class="card results"><h2>Quiz complete</h2><div class="score">${qz.score}/${n}</div>
+      ${statBox([['Accuracy', pct + '%'], ['Correct', qz.score], ['Missed', n - qz.score], ['Total time', fmtTime(dur)], ['Per question', fmtTime(dur / n)]])}
+      ${quoteBox(qz.quote)}
+      <div class="row" style="justify-content:center"><button class="b" data-act="startQuiz">New quiz</button>${wrong.length ? '<button class="b alt" data-act="retryMissed">Retry missed</button>' : ''}<button class="b alt" data-act="endQuiz">Back</button></div></div>`;
+    if (wrong.length) html += `<details open><summary>Review missed questions (${wrong.length})</summary>` + wrong.map(w =>
+      `<div class="card"><small>${quizTypeName(w.it.type)}</small><br><b>${esc(w.it.q).replace(/_____/g, '<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}</b><br><small>Your answer: ${esc(w.it.type === 'multiple-choice' ? w.it.options[w.picked] : quizAnswerText(w.picked))}</small><br><b style="color:var(--ok)">Correct: ${esc(w.it.type === 'multiple-choice' ? w.it.options[w.it.answer] : quizAnswerText(w.it.answer))}</b>${w.it.explain ? '<br><small>' + esc(w.it.explain) + '</small>' : ''}</div>`).join('') + '</details>';
+  } else {
+    const it = qz.list[qz.i];
+    html = `<div class="progress"><i style="width:${qz.i / qz.list.length * 100}%"></i></div><small>Question ${qz.i + 1} of ${qz.list.length} · ${quizTypeName(it.type)}</small>
+      <div class="card"><div style="font-size:18px">${esc(it.q).replace(/_____/g, '<span class="blank">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>')}</div></div>`;
+    if (it.type === 'multiple-choice') it.options.forEach((o, k) => {
+      let cls = '';
+      if (qz.picked !== null) cls = k === it.answer ? ' ok' : (k === qz.picked ? ' bad' : '');
+      html += `<button class="opt${cls}" data-act="pick" data-i="${k}">${esc(o)}</button>`;
+    });
+    else if (qz.picked === null) html += it.type === 'enumeration'
+      ? `<textarea id="quizAnswer" placeholder="Enter one item per line or separate them with commas" aria-label="Your enumeration answer"></textarea><button class="b" data-act="submitAnswer">Check answer</button>`
+      : `<input id="quizAnswer" type="text" placeholder="Type your answer" aria-label="Your identification answer"><button class="b" data-act="submitAnswer">Check answer</button>`;
+    if (qz.picked !== null) {
+      const correct = it.type === 'multiple-choice' ? qz.picked === it.answer : quizAnswersMatch(qz.picked, it.answer, it.type);
+      html += `<div class="card"><b>${correct ? 'Correct.' : 'Not quite.'}</b>${it.type !== 'multiple-choice' && !correct ? '<br><small>Correct answer: ' + esc(quizAnswerText(it.answer)) + '</small>' : ''} ${it.explain ? '<br><small>' + esc(it.explain) + '</small>' : ''}</div>
+        <button class="b" data-act="nextQ">${qz.i + 1 === qz.list.length ? 'See score' : 'Next'}</button>`;
+    }
+  }
+  $('#v-quiz').innerHTML = html;
+  if ($('#qdeck')) { $('#qdeck').onchange = e => { quizDeck = e.target.value; renderQuiz(); }; }
+  if ($('#qtype')) { $('#qtype').onchange = e => { quizType = e.target.value; renderQuiz(); }; }
+}
+
+/* ---------- Settings folder ---------- */
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (tab === 'set') renderSettings(); });
+
+function renderSettings() {
+  const key = localStorage.getItem(keyName()) || '';
+  const th = localStorage.getItem('pd_theme') || 'auto';
+  const acct = (me && !me.guest)
+    ? `<h2 style="margin-top:0">Account</h2><div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your files, flashcards, quizzes and plans are saved on this device under this account.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
+    : `<h2 style="margin-top:0">Account</h2><div class="card"><p class="mute" style="margin-top:0">You are using Padayon without an account. Sign in with your phone number to keep your study material separate from other people who use this device.</p><button class="b" data-act="toLogin">Sign in</button></div>`;
+  const notif = !('Notification' in window) ? '' : Notification.permission === 'granted' ? '<p class="mute" style="margin:0">Notifications are on.</p>'
+    : Notification.permission === 'denied' ? '<p class="mute" style="margin:0">Notifications are blocked. Turn them on for this site in your browser settings.</p>'
+    : '<button class="b" data-act="askNotif">Turn on notifications</button>';
+  $('#v-set').innerHTML = `
+    ${acct}
+    <h2>Appearance</h2>
+    <div class="card"><div class="seg" style="margin:0">${[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Match device']].map(([v, l]) => `<button class="${th === v ? 'on' : ''}" data-act="setTheme" data-v="${v}">${l}</button>`).join('')}</div></div>
+    <h2>Reminders</h2>
+    <div class="card"><p class="mute" style="margin-top:0">Padayon reminds you 1 hour and 30 minutes before each task deadline while the app is open. To get reminders even when the app is closed, tap "Phone reminder" on a task to add it to your phone's calendar.</p>${notif}</div>
+    <h2>Backup</h2>
+    <div class="card"><p class="mute" style="margin-top:0">Your files live only in this browser. Clearing browser data erases them, so export a backup now and then.</p>
+      <div class="row"><button class="b" data-act="export">Export backup</button><button class="b alt" data-act="import">Import backup</button></div></div>
+    <details><summary>Smart mode (advanced, optional)</summary>
+      <div class="card"><p class="mute" style="margin-top:0">Smart mode writes better questions using an AI service. It needs an access code from that service, and each use costs a small fee. Most people can skip this and use the free <b>Make cards</b> button.</p>
+        <input type="password" id="key" placeholder="Access code" value="${esc(key)}" autocomplete="off">
+        <div class="row" style="margin-top:10px"><button class="b" data-act="saveKey">Save code</button>${key ? '<button class="b danger" data-act="clearKey">Remove code</button>' : ''}</div></div>
+    </details>
+    ${installEvt ? '<h2>Install</h2><div class="card"><button class="b" data-act="install">Install Padayon on this device</button></div>' : ''}`;
+}
+
+const blobToData = b => new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(b); });
+async function exportAll() {
+  toast('Preparing backup…', 60000);
+  const files = await all('files');
+  const out = { v: 1, files: [], cards: await all('cards'), quiz: await all('quiz'), plans: await all('plans'), tasks: await all('tasks') };
+  for (const f of files) out.files.push({ ...f, blob: await blobToData(f.blob), text: undefined });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
+  a.download = 'padayon-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click(); toast('Backup downloaded', 3000);
+}
+$('#importer').addEventListener('change', async e => {
+  const file = e.target.files[0]; if (!file) return;
+  try {
+    const data = JSON.parse(await file.text()); const map = {};
+    for (const f of data.files) { const old = f.id; delete f.id; f.blob = await (await fetch(f.blob)).blob(); map[old] = await put('files', f); }
+    for (const c of data.cards) { delete c.id; c.fileId = map[c.fileId] || 0; await put('cards', c); }
+    for (const q of data.quiz) { delete q.id; q.fileId = map[q.fileId] || 0; await put('quiz', q); }
+    for (const x of (data.plans || [])) { delete x.id; await put('plans', x); }
+    for (const x of (data.tasks || [])) { delete x.id; await put('tasks', x); }
+    toast('Backup imported', 3000);
+  } catch (err) { toast('That file is not a valid backup.', 4000); }
+  e.target.value = ''; render();
+});
+
+async function deleteFiles(ids) {
+  const set = new Set(ids);
+  for (const id of ids) await del('files', id);
+  for (const c of await all('cards')) if (set.has(c.fileId)) await del('cards', c.id);
+  for (const q of await all('quiz')) if (set.has(q.fileId)) await del('quiz', q.id);
+  deckSel = 'all'; quizDeck = 'all'; cardFolder = null; fc.queue = null; qz.list = null; sel.clear(); selMode = false;
+  toast(ids.length === 1 ? 'File deleted' : ids.length + ' files deleted', 2500);
+  render();
+}
+
+/* ---------- actions ---------- */
+const act = {
+  closeViewer: () => $('#viewer').classList.remove('on'),
+  closeSheet,
+  open: b => openViewer(+b.dataset.id),
+  more: b => openSheet(+b.dataset.id),
+  genOff: b => generate(+b.dataset.id, 'offline'),
+  genAi: b => generate(+b.dataset.id, 'ai'),
+  async rename(b) { const f = await get('files', +b.dataset.id); const n = prompt('New name', f.name); if (n && n.trim()) { f.name = n.trim(); await put('files', f); render(); } },
+  async folder(b) { const f = await get('files', +b.dataset.id); const n = prompt('Folder name (leave empty for none)', f.folder || ''); if (n !== null) { f.folder = n.trim(); await put('files', f); render(); } },
+  async delFile(b) {
+    const f = await get('files', +b.dataset.id);
+    if (!f || !confirm('Delete "' + f.name + '"?\nIts flashcards and quiz questions will be deleted too.')) return;
+    deleteFiles([f.id]);
+  },
+  toggleSel() { selMode = !selMode; sel.clear(); renderFiles(); },
+  selone(b) { const id = +b.dataset.id; sel.has(id) ? sel.delete(id) : sel.add(id); renderFiles(); },
+  delSelected() { if (sel.size && confirm('Delete ' + sel.size + ' file(s)?\nTheir flashcards and quiz questions will be deleted too.')) deleteFiles([...sel]); },
+  flip: () => { fc.flipped = !fc.flipped; renderCards(); },
+  async got() {
+    const id = fc.queue[0]; const c = await get('cards', id);
+    c.box = Math.min((c.box || 0) + 1, BOX_DAYS.length - 1); c.due = Date.now() + BOX_DAYS[c.box] * 86400000;
+    await put('cards', c); const s = cardStats(); s.seen.add(id); s.got++; fc.queue.shift(); fc.flipped = false; renderCards();
+  },
+  async miss() {
+    const id = fc.queue[0]; const c = await get('cards', id); c.box = 0; c.due = 0; await put('cards', c);
+    const s = cardStats(); s.seen.add(id); s.missed.add(id); s.miss++;
+    fc.queue.push(fc.queue.shift()); fc.flipped = false; renderCards();
+  },
+  async studyAll() { fc.stats = null; const cards = await all('cards'); await loadNames(); fc.queue = shuffle(cardsIn(cards, cardFolder || '*').map(c => c.id)); fc.flipped = false; renderCards(); },
+  cardsDone() { fc.stats = null; fc.queue = null; cardFolder = null; renderCards(true); },
+  openFolder(b) { cardFolder = b.dataset.f === '*' ? '*' : cardTopics[+b.dataset.f]; fc.stats = null; fc.queue = null; renderCards(true); },
+  closeFolder() { cardFolder = null; fc.stats = null; fc.queue = null; renderCards(true); },
+  newFolder() {
+    const n = (prompt('Name for the new folder') || '').trim().slice(0, 40); if (!n) return;
+    setExtraFolders([...extraFolders(), n]); renderCards(true);
+  },
+  async renameFolder() {
+    const old = cardFolder, n = (prompt('Rename folder', old) || '').trim().slice(0, 40); if (!n || n === old) return;
+    for (const c of (await all('cards')).filter(c => topicOf(c) === old)) { c.topic = n; await put('cards', c); }
+    setExtraFolders(extraFolders().map(x => x === old ? n : x)); cardFolder = n; renderCards(true);
+  },
+  async delFolder() {
+    const old = cardFolder, list = (await all('cards')).filter(c => topicOf(c) === old);
+    if (!confirm('Delete the folder "' + old + '" and its ' + list.length + ' card(s)?')) return;
+    for (const c of list) await del('cards', c.id);
+    setExtraFolders(extraFolders().filter(x => x !== old)); cardFolder = null; fc.queue = null; fc.stats = null; renderCards(true);
+  },
+  async moveCard(b) {
+    const c = await get('cards', +b.dataset.id);
+    const n = (prompt('Move this card to which folder? Type a name.\nYour folders: ' + cardTopics.join(', '), topicOf(c)) || '').trim().slice(0, 40);
+    if (!n) return; c.topic = n; await put('cards', c); fc.queue = null; renderCards(true);
+  },
+  async addCard() {
+    const q = $('#nq').value.trim(), a = $('#na').value.trim(); if (!q || !a) return toast('Enter both a question and an answer.');
+    const topic = ($('#nt').value.trim() || (cardFolder && cardFolder !== '*' ? cardFolder : 'My cards')).slice(0, 40);
+    await put('cards', { fileId: 0, topic, q, a, box: 0, due: 0 }); fc.queue = null; toast('Card saved to ' + topic, 2000); renderCards(true);
+  },
+  async delCard(b) { await del('cards', +b.dataset.id); fc.queue = null; renderCards(true); },
+  async startQuiz() {
+    const quiz = await all('quiz');
+    const pool = shuffle(quiz.filter(q => (quizDeck === 'all' || String(q.fileId) === quizDeck) && (quizType === 'all' || (q.type || 'multiple-choice') === quizType))).map(prepQ);
+    if (!pool.length) return;
+    Object.assign(qz, { list: pool, i: 0, score: 0, picked: null, wrong: [], start: Date.now(), end: null, quote: null }); renderQuiz();
+  },
+  retryMissed() {
+    const list = shuffle((qz.wrong || []).map(w => prepQ(w.it))); if (!list.length) return;
+    Object.assign(qz, { list, i: 0, score: 0, picked: null, wrong: [], start: Date.now(), end: null, quote: null }); renderQuiz();
+  },
+  pick(b) { if (qz.picked !== null) return; qz.picked = +b.dataset.i; const it = qz.list[qz.i]; if (qz.picked === it.answer) qz.score++; else qz.wrong.push({ it, picked: qz.picked }); renderQuiz(); },
+  submitAnswer() {
+    if (qz.picked !== null) return;
+    const it = qz.list[qz.i], input = $('#quizAnswer').value.trim();
+    if (!input) return toast('Enter your answer first.');
+    qz.picked = input;
+    if (quizAnswersMatch(input, it.answer, it.type)) qz.score++;
+    else qz.wrong.push({ it, picked: input });
+    renderQuiz();
+  },
+  nextQ() { qz.i++; qz.picked = null; renderQuiz(); },
+  endQuiz() { qz.list = null; renderQuiz(); },
+  saveKey() { const v = $('#key').value.trim(); if (v) { localStorage.setItem(keyName(), v); toast('Code saved', 1500); } renderSettings(); },
+  clearKey() { localStorage.removeItem(keyName()); toast('Code removed', 1500); renderSettings(); },
+  gLogin: () => signInWith(new firebase.auth.GoogleAuthProvider()),
+  fLogin: () => signInWith(new firebase.auth.FacebookAuthProvider()),
+  sendCode: sendCode,
+  verifyCode: verifyCode,
+  guest() { localStorage.setItem('pd_guest', '1'); startApp(GUEST); },
+  toLogin() { localStorage.removeItem('pd_guest'); showLogin(); },
+  async signOut() {
+    localStorage.removeItem('pd_guest');
+    if (auth && auth.currentUser) await auth.signOut(); else showLogin();
+  },
+  export: exportAll,
+  import: () => $('#importer').click(),
+  async install() { if (installEvt) { installEvt.prompt(); installEvt = null; renderSettings(); } }
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || !act[b.dataset.act]) return;
+  if (b.closest('#sheet') && b.dataset.act !== 'closeSheet') closeSheet();
+  act[b.dataset.act](b);
+});
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset && e.target.dataset.act === 'flip') { e.preventDefault(); act.flip(); } });
+
+/* ---------- stacked folders ---------- */
+const TABS = ['files', 'cards', 'quiz', 'plan', 'set'];
+let tab = 'files';
+function layoutFolders() {
+  let depth = 1;
+  document.querySelectorAll('.folder').forEach(el => {
+    const front = el.dataset.tab === tab;
+    el.classList.toggle('front', front);
+    const d = front ? 0 : depth++;
+    el.style.setProperty('--d', d);
+    el.style.zIndex = 10 - d;
+  });
+}
+function render() {
+  layoutFolders();
+  if (tab === 'files') renderFiles();
+  if (tab === 'cards') renderCards(true);
+  if (tab === 'quiz') renderQuiz();
+  if (tab === 'plan') renderPlan();
+  if (tab === 'set') renderSettings();
+}
+document.querySelectorAll('.folder').forEach(el => el.addEventListener('click', () => {
+  if (el.dataset.tab !== tab) { tab = el.dataset.tab; render(); }
+}));
+
+/* ---------- account state (declared early: other code uses it) ---------- */
+let me = null, auth = null, confirmation = null, recaptcha = null;
+const GUEST = { guest: true, uid: 'guest', name: 'Guest', detail: '' };
+const keyName = () => (!me || me.guest) ? 'sb_key' : 'sb_key_' + me.uid;
+
+/* ---------- theme ---------- */
+function applyTheme() {
+  const p = localStorage.getItem('pd_theme') || 'auto';
+  const dark = p === 'dark' || (p === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#120f22' : '#f4f4f7';
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+applyTheme();
+
+/* ---------- sound + notifications ---------- */
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [880, 1175].forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(.0001, ctx.currentTime + i * .22); g.gain.exponentialRampToValueAtTime(.25, ctx.currentTime + i * .22 + .03); g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + i * .22 + .2);
+      o.start(ctx.currentTime + i * .22); o.stop(ctx.currentTime + i * .22 + .22);
+    });
+  } catch (e) {}
+}
+async function notify(title, body, tag) {
+  toast(title + ': ' + body, 9000); beep();
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg && reg.showNotification) reg.showNotification(title, { body, icon: 'icon-192.png', badge: 'icon-192.png', tag });
+      else new Notification(title, { body, icon: 'icon-192.png' });
+    }
+  } catch (e) {}
+}
+async function checkReminders() {
+  if (!db || !me) return;
+  let tasks; try { tasks = await all('tasks'); } catch (e) { return; }
+  const now = Date.now();
+  for (const t of tasks) {
+    if (t.done || t.deadline <= now) continue;
+    const left = t.deadline - now;
+    if (left <= 30 * 60000 && !t.n30) { t.n30 = true; t.n60 = true; await put('tasks', t); notify('Due in 30 minutes', t.title, 'task-' + t.id + '-30'); }
+    else if (left <= 60 * 60000 && !t.n60) { t.n60 = true; await put('tasks', t); notify('Due in 1 hour', t.title, 'task-' + t.id + '-60'); }
+  }
+}
+setInterval(checkReminders, 20000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkReminders(); });
+
+/* ---------- planner: calendar + task tracker ---------- */
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const KINDS = { study: '📚 Study', class: '🎓 Class', exam: '📝 Exam', other: '🎀 Other' };
+const TASK_TYPES = ['Assignment', 'Quiz or exam', 'Project', 'Other'];
+let planView = 'cal', taskFilter = 'todo', calMonth = new Date(), calSel = ymd(new Date());
+calMonth.setDate(1);
+
+const BOW = (s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 32 32" aria-hidden="true" style="vertical-align:-3px"><path d="M16 16 L3 7 Q0 16 3 25 Z" fill="#ff6fae"/><path d="M16 16 L29 7 Q32 16 29 25 Z" fill="#ff6fae"/><path d="M14 18 L8 30 L14 27 Z" fill="#e0508f"/><path d="M18 18 L24 30 L18 27 Z" fill="#e0508f"/><circle cx="16" cy="16" r="4.5" fill="#c2185b"/></svg>`;
+// original little mascot (not a licensed character)
+const MASCOT = `<svg width="66" height="76" viewBox="0 0 80 92" role="img" aria-label="Cute study buddy">
+  <ellipse cx="40" cy="87" rx="22" ry="4" fill="rgba(0,0,0,.1)"/>
+  <path d="M23 64 Q40 59 57 64 L61 85 Q40 91 19 85 Z" fill="#ff8fc0"/>
+  <circle cx="40" cy="40" r="25" fill="#ffe7d8"/>
+  <path d="M15 40 Q12 11 40 11 Q68 11 65 40 Q61 24 40 24 Q19 24 15 40 Z" fill="#2b2233"/>
+  <path d="M15 40 Q14 54 22 59 L25 40 Z" fill="#2b2233"/><path d="M65 40 Q66 54 58 59 L55 40 Z" fill="#2b2233"/>
+  <ellipse cx="31" cy="44" rx="3.2" ry="4.4" fill="#2b2233"/><ellipse cx="49" cy="44" rx="3.2" ry="4.4" fill="#2b2233"/>
+  <circle cx="32.2" cy="42.5" r="1.1" fill="#fff"/><circle cx="50.2" cy="42.5" r="1.1" fill="#fff"/>
+  <ellipse cx="25" cy="51" rx="4.2" ry="2.6" fill="#ffb3cf"/><ellipse cx="55" cy="51" rx="4.2" ry="2.6" fill="#ffb3cf"/>
+  <path d="M37 52 Q40 55 43 52" stroke="#c0446f" fill="none" stroke-width="1.7" stroke-linecap="round"/>
+  <path d="M40 13 L26 5 Q23 13 26 21 Z" fill="#ff6fae"/><path d="M40 13 L54 5 Q57 13 54 21 Z" fill="#ff6fae"/><circle cx="40" cy="13" r="4" fill="#c2185b"/>
+</svg>`;
+
+const fmtDue = ts => new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+function relDue(ts) {
+  const ms = ts - Date.now(), m = Math.round(Math.abs(ms) / 60000);
+  const s = m < 60 ? m + ' min' : m < 1440 ? Math.floor(m / 60) + ' h ' + (m % 60) + ' min' : Math.floor(m / 1440) + ' d ' + Math.floor((m % 1440) / 60) + ' h';
+  return ms >= 0 ? 'in ' + s : 'overdue by ' + s;
+}
+
+async function renderPlan() {
+  const [plans, tasks] = await Promise.all([all('plans'), all('tasks')]);
+  const today = ymd(new Date()), now = Date.now();
+  const dueToday = tasks.filter(t => !t.done && ymd(new Date(t.deadline)) === today).length;
+  const late = tasks.filter(t => !t.done && t.deadline < now).length;
+  const say = late ? `${late} task${late > 1 ? 's are' : ' is'} overdue. Let's catch up, one small step at a time!`
+    : dueToday ? `${dueToday} thing${dueToday > 1 ? 's' : ''} due today. You've got this!`
+    : 'Nothing due today. How about a little study session?';
+  $('#v-plan').innerHTML = `<div class="pl">
+    <div class="pl-top">${MASCOT}<div class="bubble">${esc(say)}</div></div>
+    <div class="seg"><button class="${planView === 'cal' ? 'on' : ''}" data-act="planView" data-v="cal">Calendar</button><button class="${planView === 'tasks' ? 'on' : ''}" data-act="planView" data-v="tasks">Tasks</button></div>
+    ${planView === 'cal' ? calHtml(plans, tasks) : tasksHtml(tasks)}</div>`;
+}
+
+function calHtml(plans, tasks) {
+  const y = calMonth.getFullYear(), m = calMonth.getMonth(), first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate(), today = ymd(new Date());
+  const byPlan = {}, byTask = {};
+  plans.forEach(p => (byPlan[p.date] = byPlan[p.date] || []).push(p));
+  tasks.forEach(t => { const k = ymd(new Date(t.deadline)); (byTask[k] = byTask[k] || []).push(t); });
+  let cells = '';
+  for (let i = 0; i < first; i++) cells += '<span class="cday empty"></span>';
+  for (let d = 1; d <= days; d++) {
+    const k = y + '-' + pad(m + 1) + '-' + pad(d), np = (byPlan[k] || []).length, nt = (byTask[k] || []).length;
+    cells += `<button class="cday${k === today ? ' today' : ''}${k === calSel ? ' sel' : ''}" data-act="selDay" data-d="${k}" aria-label="${MONTHS[m]} ${d}"><span>${d}</span><span class="dots">${'•'.repeat(Math.min(np, 3))}${'♥'.repeat(Math.min(nt, 2))}</span></button>`;
+  }
+  const sd = new Date(calSel + 'T00:00:00');
+  const dayPlans = (byPlan[calSel] || []).slice().sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const dayTasks = (byTask[calSel] || []).slice().sort((a, b) => a.deadline - b.deadline);
+  let list = '';
+  dayTasks.forEach(t => list += `<div class="entry${t.done ? ' done' : ''}"><input type="checkbox" data-act="toggleTask" data-id="${t.id}" ${t.done ? 'checked' : ''} aria-label="Mark done"><span class="t grow"><b>${BOW(16)} ${esc(t.title)}</b><br><small>Due ${new Date(t.deadline).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · ${esc(t.type)}</small></span></div>`);
+  dayPlans.forEach(p => list += `<div class="entry${p.done ? ' done' : ''}"><input type="checkbox" data-act="togglePlan" data-id="${p.id}" ${p.done ? 'checked' : ''} aria-label="Mark done"><span class="t grow">${esc(p.title)}<br><small>${p.time ? esc(p.time) + ' · ' : ''}${KINDS[p.kind] || KINDS.other}</small></span><button class="x2" data-act="delPlan" data-id="${p.id}" aria-label="Delete">✕</button></div>`);
+  if (!list) list = '<p class="empty" style="padding:14px 6px">Nothing planned for this day yet.</p>';
+  return `<div class="cal">
+    <div class="cal-nav"><button class="nav-btn" data-act="monthPrev" aria-label="Previous month">‹</button><div class="ribbon">${MONTHS[m]} ${y}</div><button class="nav-btn" data-act="monthNext" aria-label="Next month">›</button></div>
+    <div class="dow">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(d => `<span>${d}</span>`).join('')}</div>
+    <div class="days">${cells}</div>
+    <small class="mute" style="display:block;margin-top:8px;text-align:center">• planned   ♥ task deadline</small>
+  </div>
+  <div class="dayhead"><span class="ribbon sm">${sd.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</span></div>
+  ${list}
+  <div class="card addbox"><input type="text" id="pTitle" placeholder="Add to your plan (e.g. Review chapter 3)" maxlength="80">
+    <div class="row"><input type="time" id="pTime" aria-label="Time"><select id="pKind" aria-label="Type">${Object.entries(KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select><button class="b" data-act="addPlan">Add ♡</button></div></div>`;
+}
+
+function tasksHtml(tasks) {
+  const done = tasks.filter(t => t.done).length, total = tasks.length, pct = total ? Math.round(done / total * 100) : 0;
+  const list = tasks.filter(t => taskFilter === 'done' ? t.done : !t.done).sort((a, b) => a.deadline - b.deadline);
+  const tom = new Date(Date.now() + 86400000), defDue = ymd(tom) + 'T17:00';
+  const notifLine = !('Notification' in window) ? '' : Notification.permission === 'granted' ? '<small>🔔 Notifications are on.</small>'
+    : Notification.permission === 'denied' ? '<small>Notifications are blocked in your browser settings.</small>'
+    : '<button class="b alt" data-act="askNotif" style="margin-top:8px">Turn on notifications</button>';
+  const cards = list.map(t => {
+    const left = t.deadline - Date.now(), cls = t.done ? 'done' : left < 0 ? 'late' : left < 86400000 ? 'soon' : '';
+    return `<div class="entry ${cls}"><input type="checkbox" data-act="toggleTask" data-id="${t.id}" ${t.done ? 'checked' : ''} aria-label="Mark done">
+      <span class="t grow"><b>${esc(t.title)}</b><br><small>${esc(t.type)} · ${fmtDue(t.deadline)}</small><br><small>${t.done ? 'Done 🎉' : '⏰ ' + relDue(t.deadline)}</small></span>
+      <span class="col"><button class="x2" data-act="delTask" data-id="${t.id}" aria-label="Delete task">✕</button>${t.done ? '' : `<button class="b alt sm" style="font-size:15px;padding:6px 10px" data-act="icsTask" data-id="${t.id}">Phone reminder</button>`}</span></div>`;
+  }).join('') || `<p class="empty">${taskFilter === 'done' ? 'Nothing finished yet.' : 'No tasks. Add your first assignment above.'}</p>`;
+  return `<div class="card"><b>Your progress</b> <small>${done} of ${total} done</small><div class="progress" style="margin-bottom:0"><i style="width:${pct}%"></i></div></div>
+  <div class="card addbox"><div class="ribbon sm" style="margin-left:14px">New task</div>
+    <input type="text" id="tTitle" placeholder="Assignment or task name" maxlength="80">
+    <div class="row"><select id="tType" aria-label="Type">${TASK_TYPES.map(t => `<option>${t}</option>`).join('')}</select><input type="datetime-local" id="tDue" value="${defDue}" aria-label="Deadline"></div>
+    <small style="display:block;margin-top:8px">You will get a reminder 1 hour and 30 minutes before the deadline.</small>
+    <div class="row"><button class="b" data-act="addTask">Add task ♡</button></div>${notifLine}</div>
+  <div class="seg"><button class="${taskFilter === 'todo' ? 'on' : ''}" data-act="taskFilter" data-v="todo">To do</button><button class="${taskFilter === 'done' ? 'on' : ''}" data-act="taskFilter" data-v="done">Done</button></div>
+  ${cards}`;
+}
+
+function icsFor(t) {
+  const dt = ms => new Date(ms).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const clean = s => String(s).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, ' ');
+  const alarm = mins => ['BEGIN:VALARM', 'TRIGGER:-PT' + mins + 'M', 'ACTION:DISPLAY', 'DESCRIPTION:' + clean(t.title) + ' is due in ' + (mins === 60 ? '1 hour' : mins + ' minutes'), 'END:VALARM'];
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Padayon//EN', 'BEGIN:VEVENT', 'UID:padayon-' + t.id + '-' + t.created + '@padayon', 'DTSTAMP:' + dt(Date.now()),
+    'DTSTART:' + dt(t.deadline), 'DTEND:' + dt(t.deadline + 15 * 60000), 'SUMMARY:' + clean('Due: ' + t.title), 'DESCRIPTION:' + clean(t.type + ' (from Padayon)'),
+    ...alarm(60), ...alarm(30), 'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+}
+
+/* ---------- pomodoro ---------- */
+const POMO = { mode: 'focus', len: { focus: 25, short: 5, long: 15 }, left: 25 * 60000, end: 0, running: false, timer: null };
+const pomoKey = () => 'pd_pomo_' + (me ? me.uid : 'guest') + '_' + ymd(new Date());
+const pomoCount = () => +localStorage.getItem(pomoKey()) || 0;
+const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return pad(Math.floor(s / 60)) + ':' + pad(s % 60); };
+function pomoPaint() {
+  const total = POMO.len[POMO.mode] * 60000;
+  $('#pomoTime').textContent = mmss(POMO.left);
+  $('#pomoBar').style.width = (100 - POMO.left / total * 100) + '%';
+  $('#pomoBtn').textContent = POMO.running ? '🍅 ' + mmss(POMO.left) : '🍅 Focus';
+  $('#pomoGo').textContent = POMO.running ? 'Pause' : (POMO.left < total ? 'Resume' : 'Start');
+  document.querySelectorAll('[data-pm]').forEach(x => x.classList.toggle('on', x.dataset.pm === POMO.mode));
+  $('#pomoCount').textContent = '🍅'.repeat(Math.min(pomoCount(), 12)) || 'none yet';
+  document.title = POMO.running ? mmss(POMO.left) + ' · Padayon' : 'Padayon';
+}
+function pomoTick() { POMO.left = POMO.end - Date.now(); if (POMO.left <= 0) pomoDone(); pomoPaint(); }
+function pomoToggle() {
+  if (POMO.running) { POMO.left = POMO.end - Date.now(); POMO.running = false; clearInterval(POMO.timer); }
+  else { POMO.end = Date.now() + POMO.left; POMO.running = true; POMO.timer = setInterval(pomoTick, 500); }
+  pomoPaint();
+}
+function pomoSet(m) { clearInterval(POMO.timer); POMO.running = false; POMO.mode = m; POMO.left = POMO.len[m] * 60000; pomoPaint(); }
+function pomoDone() {
+  clearInterval(POMO.timer); POMO.running = false;
+  let next = 'focus', msg = 'Break is over. Ready for another round?';
+  if (POMO.mode === 'focus') {
+    localStorage.setItem(pomoKey(), pomoCount() + 1);
+    next = pomoCount() % 4 === 0 ? 'long' : 'short';
+    msg = 'Nice focus! Time for a ' + (next === 'long' ? 'long' : 'short') + ' break.';
+  }
+  notify('Timer done', msg, 'pomo');
+  POMO.mode = next; POMO.left = POMO.len[next] * 60000;
+}
+
+/* ---------- actions for the new features ---------- */
+Object.assign(act, {
+  setTheme(b) { localStorage.setItem('pd_theme', b.dataset.v); applyTheme(); renderSettings(); },
+  async askNotif() { if ('Notification' in window) { await Notification.requestPermission(); } tab === 'set' ? renderSettings() : renderPlan(); },
+  pomo() { $('#pomo').classList.toggle('on'); pomoPaint(); },
+  pomoGo: pomoToggle,
+  pomoMode: b => pomoSet(b.dataset.m),
+  pomoReset: () => pomoSet(POMO.mode),
+  planView(b) { planView = b.dataset.v; renderPlan(); },
+  taskFilter(b) { taskFilter = b.dataset.v; renderPlan(); },
+  selDay(b) { calSel = b.dataset.d; renderPlan(); },
+  monthPrev() { calMonth.setMonth(calMonth.getMonth() - 1); renderPlan(); },
+  monthNext() { calMonth.setMonth(calMonth.getMonth() + 1); renderPlan(); },
+  async addPlan() {
+    const title = $('#pTitle').value.trim(); if (!title) return toast('Type what you want to plan first.');
+    await put('plans', { date: calSel, time: $('#pTime').value, title, kind: $('#pKind').value, done: false, created: Date.now() });
+    renderPlan();
+  },
+  async togglePlan(b) { const p = await get('plans', +b.dataset.id); p.done = !p.done; await put('plans', p); renderPlan(); },
+  async delPlan(b) { await del('plans', +b.dataset.id); renderPlan(); },
+  async addTask() {
+    const title = $('#tTitle').value.trim(); if (!title) return toast('Type the task name first.');
+    const deadline = new Date($('#tDue').value).getTime();
+    if (!deadline || deadline <= Date.now()) return toast('Pick a deadline in the future.');
+    const left = deadline - Date.now();
+    await put('tasks', { title, type: $('#tType').value, deadline, done: false, created: Date.now(), n60: left <= 60 * 60000, n30: left <= 30 * 60000 });
+    toast('Task added. Reminders: 1 hour and 30 minutes before.', 3500);
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().then(() => renderPlan());
+    renderPlan();
+  },
+  async toggleTask(b) { const t = await get('tasks', +b.dataset.id); t.done = !t.done; await put('tasks', t); renderPlan(); },
+  async delTask(b) {
+    const t = await get('tasks', +b.dataset.id);
+    if (t && confirm('Delete "' + t.title + '"?')) { await del('tasks', t.id); renderPlan(); }
+  },
+  async icsTask(b) {
+    const t = await get('tasks', +b.dataset.id);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([icsFor(t)], { type: 'text/calendar' }));
+    a.download = 'padayon-task-' + t.id + '.ics'; a.click();
+    toast('Open the file to add it to your phone calendar with both reminders.', 5000);
+  }
+});
+pomoPaint();
+
+/* ---------- accounts and sign-in ---------- */
+const fbReady = () => !!(window.firebase && window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && !/^YOUR/.test(window.FIREBASE_CONFIG.apiKey));
+const loginMsg = (t, ok) => { const m = $('#loginMsg'); m.textContent = t || ''; m.style.color = ok ? 'var(--ok)' : 'var(--bad)'; };
+
+function showLogin() {
+  confirmation = null;
+  $('#phoneStep').style.display = ''; $('#codeStep').style.display = 'none';
+  $('#viewer').classList.remove('on');
+  const ready = fbReady();
+  $('#sendCode').disabled = !ready;
+  loginMsg(ready ? '' : 'Sign-in is not available right now. It needs an internet connection, or it has not been set up yet. You can continue without an account.');
+  $('#login').classList.add('on');
+}
+
+async function startApp(u) {
+  me = u;
+  if (db) { db.close(); db = null; }
+  await openDB(u.guest ? 'studybox' : 'padayon-' + u.uid);   // each account gets its own database
+  deckSel = 'all'; quizDeck = 'all'; cardFolder = null; fc.queue = null; fc.stats = null; qz.list = null;
+  sel.clear(); selMode = false; tab = 'files';
+  $('#login').classList.remove('on');
+  render(); checkReminders(); pomoPaint();
+}
+
+const authErrors = {
+  'auth/account-exists-with-different-credential': 'This email is already used with another sign-in method. Try that one instead.',
+  'auth/invalid-phone-number': 'That phone number does not look right. Use 09XX XXX XXXX or +country code.',
+  'auth/too-many-requests': 'Too many attempts. Please wait a few minutes and try again.',
+  'auth/invalid-verification-code': 'That code is not correct. Check it and try again.',
+  'auth/code-expired': 'That code has expired. Send a new one.',
+  'auth/network-request-failed': 'No internet connection. Try again when you are online.',
+  'auth/unauthorized-domain': 'This web address is not allowed yet. Add it under Authorized domains in Firebase.'
+};
+async function signInWith(provider) {
+  if (!auth) return loginMsg('Sign-in is not available right now.');
+  loginMsg('Opening sign-in…', true);
+  try { await auth.signInWithPopup(provider); }
+  catch (e) {
+    if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(e.code)) { try { return await auth.signInWithRedirect(provider); } catch (e2) { e = e2; } }
+    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return loginMsg('');
+    loginMsg(authErrors[e.code] || 'Could not sign in. ' + (e.message || ''));
+  }
+}
+function normalizePhone(v) {
+  const s = v.replace(/[\s\-()]/g, '');
+  if (/^\+\d{8,15}$/.test(s)) return s;
+  if (/^0\d{10}$/.test(s)) return '+63' + s.slice(1);   // Philippine mobile: 09XXXXXXXXX
+  if (/^63\d{10}$/.test(s)) return '+' + s;
+  return null;
+}
+async function sendCode() {
+  if (!auth) return loginMsg('Sign-in is not available right now.');
+  const num = normalizePhone($('#phone').value);
+  if (!num) return loginMsg('Enter your number like 09XX XXX XXXX or +63 9XX XXX XXXX.');
+  loginMsg('Sending code…', true);
+  try {
+    recaptcha = recaptcha || new firebase.auth.RecaptchaVerifier('sendCode', { size: 'invisible' });
+    confirmation = await auth.signInWithPhoneNumber(num, recaptcha);
+    $('#phoneStep').style.display = 'none'; $('#codeStep').style.display = '';
+    loginMsg('Code sent to ' + num + '.', true); $('#code').focus();
+  } catch (e) {
+    try { recaptcha && recaptcha.clear(); } catch (_) {} recaptcha = null;
+    loginMsg(authErrors[e.code] || 'Could not send the code. ' + (e.message || ''));
+  }
+}
+async function verifyCode() {
+  const c = $('#code').value.trim();
+  if (!confirmation || c.length < 4) return loginMsg('Enter the code from the text message.');
+  try { await confirmation.confirm(c); } catch (e) { loginMsg(authErrors[e.code] || 'Could not verify the code.'); }
+}
+
+/* ---------- start ---------- */
+(function boot() {
+  if (fbReady()) {
+    if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
+    auth = firebase.auth();
+    auth.onAuthStateChanged(u => {
+      if (u) { localStorage.removeItem('pd_guest'); startApp({ uid: u.uid, name: u.displayName || '', detail: u.email || u.phoneNumber || '' }); }
+      else if (localStorage.getItem('pd_guest')) startApp(GUEST);
+      else showLogin();
+    });
+  } else if (localStorage.getItem('pd_guest')) startApp(GUEST);
+  else showLogin();
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+})();
+</script>
+</body>
+</html>

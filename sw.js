@@ -1,7 +1,8 @@
-const CACHE = 'padayon-v7';
+const CACHE = 'padayon-v8';
 const SHELL = [
   './', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './firebase-config.js',
   './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js',
+  './vendor/firebase-firestore-compat.js', './vendor/firebase-storage-compat.js',
   './vendor/pdf.min.js', './vendor/pdf.worker.min.js'
 ];
 

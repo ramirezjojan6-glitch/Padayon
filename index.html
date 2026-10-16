@@ -306,7 +306,7 @@ html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:
 <div id="login" role="dialog" aria-label="Sign in">
   <div class="card login-card">
     <h1 class="loginlogo" aria-label="Padayon"><span class="pa">PA</span><span class="day">DAYON</span></h1>
-    <p class="mute">Sign in with your email to keep your study space on this device. Email and password sign-in does not require Firebase billing.</p>
+    <p class="mute">Sign in with your email to access your study space. Cloud sync needs to be enabled in Firebase. Email and password sign-in does not require Firebase billing.</p>
     <form id="emailForm">
       <div id="emailStep">
         <input type="email" id="email" placeholder="Email address" autocomplete="email" required>
@@ -335,6 +335,8 @@ html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:
 
 <script src="vendor/firebase-app-compat.js"></script>
 <script src="vendor/firebase-auth-compat.js"></script>
+<script src="vendor/firebase-firestore-compat.js"></script>
+<script src="vendor/firebase-storage-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script>
@@ -348,6 +350,10 @@ const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1
 
 /* ---------- storage (IndexedDB) ---------- */
 let db;
+const SYNC_STORES = ['files', 'cards', 'quiz', 'plans', 'tasks'];
+let cloudDb = null, cloudStorage = null, cloudUserId = null, cloudSyncEnabled = false;
+let cloudApplyDepth = 0, cloudFlushPromise = null, cloudErrorShown = false, cloudSyncReconciling = false;
+let cloudStatus = 'Sign in to sync your study data across devices.';
 function openDB(name = 'studybox') {
   return new Promise((res, rej) => {
     const r = indexedDB.open(name, 2);
@@ -360,8 +366,21 @@ const store = (s, m = 'readonly') => db.transaction(s, m).objectStore(s);
 const rq = r => new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const all = s => rq(store(s).getAll());
 const get = (s, id) => rq(store(s).get(id));
-const put = (s, o) => rq(store(s, 'readwrite').put(o));
-const del = (s, id) => rq(store(s, 'readwrite').delete(id));
+const put = async (s, o) => {
+  if (me && !me.guest) {
+    o.cloudId = o.cloudId || newCloudId();
+    if (!cloudApplyDepth) o.updatedAt = Date.now();
+  }
+  let id = await rq(store(s, 'readwrite').put(o));
+  if (o.id == null) { o.id = id; await rq(store(s, 'readwrite').put(o)); }
+  if (cloudSyncEnabled && !cloudApplyDepth) enqueueCloudChange(s, o.cloudId, id, false, o.updatedAt);
+  return id;
+};
+const del = async (s, id) => {
+  const o = await get(s, id);
+  await rq(store(s, 'readwrite').delete(id));
+  if (cloudSyncEnabled && !cloudApplyDepth && o && o.cloudId) enqueueCloudChange(s, o.cloudId, id, true, Date.now());
+};
 
 /* ---------- PDF reading ---------- */
 if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
@@ -868,8 +887,8 @@ function renderSettings() {
   const key = localStorage.getItem(keyName()) || '';
   const th = localStorage.getItem('pd_theme') || 'auto';
   const acct = (me && !me.guest)
-    ? `<h2 style="margin-top:0">Account</h2><div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your files, flashcards, quizzes and plans are saved on this device under this account.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
-    : `<h2 style="margin-top:0">Account</h2><div class="card"><p class="mute" style="margin-top:0">You are using Padayon without an account. Sign in with your phone number to keep your study material separate from other people who use this device.</p><button class="b" data-act="toLogin">Sign in</button></div>`;
+    ? `<h2 style="margin-top:0">Account</h2><div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your account identifies you across devices. Cloud sync must be configured in Firebase to share files and study data.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
+    : `<h2 style="margin-top:0">Account</h2><div class="card"><p class="mute" style="margin-top:0">You are using Padayon without an account. Sign in with your email to sync your study material across devices after cloud sync is configured.</p><button class="b" data-act="toLogin">Sign in</button></div>`;
   const notif = !('Notification' in window) ? '' : Notification.permission === 'granted' ? '<p class="mute" style="margin:0">Notifications are on.</p>'
     : Notification.permission === 'denied' ? '<p class="mute" style="margin:0">Notifications are blocked. Turn them on for this site in your browser settings.</p>'
     : '<button class="b" data-act="askNotif">Turn on notifications</button>';
@@ -879,8 +898,11 @@ function renderSettings() {
     <div class="card"><div class="seg" style="margin:0">${[['light', 'Light'], ['dark', 'Dark'], ['auto', 'Match device']].map(([v, l]) => `<button class="${th === v ? 'on' : ''}" data-act="setTheme" data-v="${v}">${l}</button>`).join('')}</div></div>
     <h2>Reminders</h2>
     <div class="card"><p class="mute" style="margin-top:0">Padayon reminds you 1 hour and 30 minutes before each task deadline while the app is open. To get reminders even when the app is closed, tap "Phone reminder" on a task to add it to your phone's calendar.</p>${notif}</div>
+    <h2>Cloud sync</h2>
+    <div class="card"><p class="mute" style="margin-top:0">${esc(cloudStatus)} PDFs, flashcards, quizzes, plans and tasks sync to your signed-in account when Firebase cloud services are configured. Changes also stay on this device for offline use.</p>
+      <button class="b alt" data-act="syncNow" ${me && !me.guest ? '' : 'disabled'}>Sync now</button></div>
     <h2>Backup</h2>
-    <div class="card"><p class="mute" style="margin-top:0">Your files live only in this browser. Clearing browser data erases them, so export a backup now and then.</p>
+    <div class="card"><p class="mute" style="margin-top:0">Cloud sync is not a substitute for a separate backup. Export a backup from time to time.</p>
       <div class="row"><button class="b" data-act="export">Export backup</button><button class="b alt" data-act="import">Import backup</button></div></div>
     <details><summary>Smart mode (advanced, optional)</summary>
       <div class="card"><p class="mute" style="margin-top:0">Smart mode writes better questions using an AI service. It needs an access code from that service, and each use costs a small fee. Most people can skip this and use the free <b>Make cards</b> button.</p>
@@ -905,7 +927,7 @@ $('#importer').addEventListener('change', async e => {
   const file = e.target.files[0]; if (!file) return;
   try {
     const data = JSON.parse(await file.text()); const map = {};
-    for (const f of data.files) { const old = f.id; delete f.id; f.blob = await (await fetch(f.blob)).blob(); map[old] = await put('files', f); }
+    for (const f of data.files) { const old = f.id; delete f.id; delete f.cloudBlobOwner; f.blob = await (await fetch(f.blob)).blob(); map[old] = await put('files', f); }
     for (const c of data.cards) { delete c.id; c.fileId = map[c.fileId] || 0; await put('cards', c); }
     for (const q of data.quiz) { delete q.id; q.fileId = map[q.fileId] || 0; await put('quiz', q); }
     for (const x of (data.plans || [])) { delete x.id; await put('plans', x); }
@@ -1033,6 +1055,13 @@ const act = {
   },
   export: exportAll,
   import: () => $('#importer').click(),
+  syncNow() {
+    if (!me || me.guest) return toast('Sign in to sync across devices.');
+    syncAccount().catch(e => {
+      cloudStatus = 'Sync unavailable: ' + (e.message || 'check Firebase setup and connection.');
+      toast(cloudStatus, 8000); renderSettings();
+    });
+  },
   async install() { if (installEvt) { installEvt.prompt(); installEvt = null; renderSettings(); } }
 };
 document.addEventListener('click', e => {
@@ -1324,11 +1353,22 @@ function showLogin() {
 
 async function startApp(u) {
   me = u;
+  cloudSyncEnabled = false; cloudSyncReconciling = false;
   if (db) { db.close(); db = null; }
   await openDB(u.guest ? 'studybox' : 'padayon-' + u.uid);   // each account gets its own database
   deckSel = 'all'; quizDeck = 'all'; cardFolder = null; fc.queue = null; fc.stats = null; qz.list = null;
   sel.clear(); selMode = false; tab = 'files';
   $('#login').classList.remove('on');
+  if (!u.guest) {
+    try { await syncAccount(); }
+    catch (e) {
+      cloudSyncReconciling = false;
+      cloudStatus = 'Sync unavailable: ' + (e.message || 'check Firebase setup and connection.');
+      toast('Your data is saved on this device, but cloud sync failed. ' + cloudStatus, 9000);
+    }
+  } else {
+    cloudSyncEnabled = false; cloudUserId = null; cloudStatus = 'Sign in to sync your study data across devices.';
+  }
   render(); checkReminders(); pomoPaint();
 }
 
@@ -1355,6 +1395,201 @@ const authErrors = {
   'auth/captcha-check-failed': 'Phone verification could not complete its security check. Reload the page and try again with Google reCAPTCHA allowed.',
   'auth/unauthorized-domain': 'This web address is not allowed yet. Add it under Authorized domains in Firebase.'
 };
+function newCloudId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2, '0')).join('');
+}
+function cloudQueueKey(uid = cloudUserId) { return 'pd_cloud_queue_' + uid; }
+function readCloudQueue() {
+  try { return JSON.parse(localStorage.getItem(cloudQueueKey()) || '[]'); }
+  catch (e) { throw new Error('The pending sync queue could not be read: ' + e.message); }
+}
+function enqueueCloudChange(s, cloudId, id, deleted, updatedAt) {
+  try {
+    const queue = readCloudQueue(), key = s + ':' + cloudId;
+    const item = { store: s, cloudId, id, deleted, updatedAt: updatedAt || Date.now() };
+    const at = queue.findIndex(x => x.store + ':' + x.cloudId === key);
+    if (at < 0) queue.push(item); else queue[at] = item;
+    localStorage.setItem(cloudQueueKey(), JSON.stringify(queue));
+    if (cloudSyncEnabled && !cloudSyncReconciling) flushCloudQueue();
+  } catch (e) {
+    cloudStatus = 'Could not save pending sync: ' + e.message;
+    toast(cloudStatus, 8000);
+  }
+}
+function cloudRecords(uid = cloudUserId) {
+  return cloudDb.collection('users').doc(uid).collection('records');
+}
+function cloudFilePath(uid, cloudId) { return 'users/' + uid + '/files/' + cloudId + '.pdf'; }
+async function serializeCloudRecord(s, o, uid) {
+  const data = { ...o };
+  delete data.id; delete data.blob; delete data.text; delete data.pages; delete data.heads; delete data.cloudBlobOwner;
+  data.store = s; data.cloudId = o.cloudId; data.updatedAt = o.updatedAt || Date.now(); data.deleted = false;
+  if (s === 'files') data.storagePath = cloudFilePath(uid, o.cloudId);
+  if (s === 'cards' || s === 'quiz') {
+    const file = o.fileId ? await get('files', o.fileId) : null;
+    data.fileCloudId = file ? file.cloudId : null;
+    delete data.fileId;
+  }
+  return JSON.parse(JSON.stringify(data));
+}
+async function pushCloudChange(item, uid) {
+  const ref = cloudRecords(uid).doc(item.cloudId);
+  if (item.deleted) {
+    const tombstone = { store: item.store, cloudId: item.cloudId, updatedAt: item.updatedAt, deleted: true };
+    if (item.store === 'files') tombstone.storagePath = cloudFilePath(uid, item.cloudId);
+    await ref.set(tombstone);
+    if (item.store === 'files') {
+      try { await cloudStorage.ref(cloudFilePath(uid, item.cloudId)).delete(); }
+      catch (e) { if (e.code !== 'storage/object-not-found') throw e; }
+    }
+    return;
+  }
+  const record = await get(item.store, item.id);
+  if (!record || record.cloudId !== item.cloudId) {
+    return pushCloudChange({ ...item, deleted: true, updatedAt: Date.now() }, uid);
+  }
+  const data = await serializeCloudRecord(item.store, record, uid);
+  if (item.store === 'files') {
+    if (!(record.blob instanceof Blob)) throw new Error('A PDF is missing from this device: ' + record.name);
+    if (record.cloudBlobOwner !== uid) {
+      await cloudStorage.ref(data.storagePath).put(record.blob, { contentType: 'application/pdf' });
+      record.cloudBlobOwner = uid;
+      await saveLocalRecord('files', record, record.id);
+    }
+  }
+  await ref.set(data);
+}
+async function flushCloudQueue() {
+  if (!cloudSyncEnabled || !navigator.onLine || cloudFlushPromise) return cloudFlushPromise;
+  const uid = cloudUserId;
+  cloudFlushPromise = (async () => {
+    let queue = readCloudQueue();
+    while (queue.length) {
+      for (const item of queue) {
+        await pushCloudChange(item, uid);
+        const latest = readCloudQueue();
+        const index = latest.findIndex(x => x.store === item.store && x.cloudId === item.cloudId);
+        if (index >= 0 && latest[index].updatedAt === item.updatedAt && latest[index].deleted === item.deleted) {
+          latest.splice(index, 1); localStorage.setItem(cloudQueueKey(uid), JSON.stringify(latest));
+        }
+      }
+      queue = readCloudQueue();
+    }
+    cloudErrorShown = false;
+    cloudStatus = 'All changes synced.';
+    if (tab === 'set') renderSettings();
+    return true;
+  })().catch(e => {
+    cloudStatus = 'Sync pending: ' + (e.message || 'Firebase request failed.');
+    if (!cloudErrorShown) toast('Saved on this device; cloud sync is pending. ' + cloudStatus, 8000);
+    cloudErrorShown = true;
+    return false;
+  }).finally(() => { cloudFlushPromise = null; });
+  return cloudFlushPromise;
+}
+async function saveLocalRecord(s, record, id) {
+  cloudApplyDepth++;
+  try {
+    if (id != null) record.id = id;
+    const key = await rq(store(s, 'readwrite').put(record));
+    if (record.id == null) { record.id = key; await rq(store(s, 'readwrite').put(record)); }
+    return record;
+  } finally { cloudApplyDepth--; }
+}
+async function removeLocalRecord(s, id) {
+  cloudApplyDepth++;
+  try { await rq(store(s, 'readwrite').delete(id)); }
+  finally { cloudApplyDepth--; }
+}
+async function applyCloudRecord(s, remote, local, uid) {
+  const record = { ...remote };
+  delete record.store; delete record.deleted; delete record.storagePath; delete record.fileCloudId;
+  if (s === 'files') {
+    if (!remote.storagePath) throw new Error('Cloud PDF is missing its storage path.');
+    const bytes = await cloudStorage.ref(remote.storagePath).getBytes(Math.max(remote.size || 0, 1));
+    record.blob = new Blob([bytes], { type: 'application/pdf' });
+    record.cloudBlobOwner = uid;
+  }
+  if (s === 'cards' || s === 'quiz') {
+    const parent = remote.fileCloudId ? (await all('files')).find(f => f.cloudId === remote.fileCloudId) : null;
+    record.fileId = parent ? parent.id : 0;
+  }
+  if (local) record.id = local.id;
+  return saveLocalRecord(s, record, local && local.id);
+}
+async function syncAccount() {
+  const user = auth && auth.currentUser;
+  if (!user || !db) return;
+  if (!firebase.firestore || !firebase.storage) throw new Error('Firestore or Storage SDK did not load. Reload the app and try again.');
+  if (!FIREBASE_CONFIG.storageBucket || /^YOUR/.test(FIREBASE_CONFIG.storageBucket)) {
+    throw new Error('Create a Firebase Storage bucket and add its name as storageBucket in firebase-config.js.');
+  }
+  cloudDb = firebase.firestore();
+  cloudStorage = firebase.storage();
+  cloudUserId = user.uid; cloudSyncEnabled = true; cloudSyncReconciling = true;
+  cloudStatus = 'Syncing study data…';
+  toast('Syncing your study data across devices…', 60000);
+
+  try {
+    const snapshot = await cloudRecords(user.uid).get();
+    const remoteById = new Map(snapshot.docs.map(doc => [doc.id, doc.data()]));
+    const pending = new Map(readCloudQueue().map(item => [item.store + ':' + item.cloudId, item]));
+    const locals = new Map();
+    for (const s of SYNC_STORES) {
+      locals.set(s, await all(s));
+      for (const record of locals.get(s)) {
+        if (!record.cloudId || !record.updatedAt) {
+          record.cloudId = record.cloudId || newCloudId();
+          record.updatedAt = record.updatedAt || 1;
+          await saveLocalRecord(s, record, record.id);
+        }
+      }
+    }
+
+    const storeOrder = ['files', 'cards', 'quiz', 'plans', 'tasks'];
+    for (const [cloudId, remote] of remoteById) {
+      const s = remote.store;
+      if (!storeOrder.includes(s)) continue;
+      const records = locals.get(s);
+      const local = records.find(record => record.cloudId === cloudId);
+      const queued = pending.get(s + ':' + cloudId);
+      if (queued && queued.deleted) continue;
+      const localTime = local ? local.updatedAt || 1 : 0;
+      const remoteTime = remote.updatedAt || 1;
+      if (remote.deleted) {
+        if (local && remoteTime >= localTime && !queued) {
+          await removeLocalRecord(s, local.id);
+          records.splice(records.indexOf(local), 1);
+        } else if (local) enqueueCloudChange(s, cloudId, local.id, false, localTime);
+        continue;
+      }
+      if (!local || (remoteTime > localTime && !queued)) {
+        const merged = await applyCloudRecord(s, remote, local, user.uid);
+        if (local) records[records.indexOf(local)] = merged;
+        else records.push(merged);
+      } else if (local) {
+        enqueueCloudChange(s, cloudId, local.id, false, localTime);
+      }
+    }
+    for (const s of storeOrder) {
+      for (const record of locals.get(s)) {
+        if (!remoteById.has(record.cloudId)) enqueueCloudChange(s, record.cloudId, record.id, false, record.updatedAt || 1);
+      }
+    }
+    cloudSyncReconciling = false;
+    if (await flushCloudQueue()) toast('Study data sync complete.', 3000);
+  } catch (e) {
+    cloudSyncReconciling = false;
+    throw e;
+  }
+}
+window.addEventListener('online', () => {
+  if (me && !me.guest && db) syncAccount().catch(e => {
+    cloudStatus = 'Sync unavailable: ' + (e.message || 'check Firebase setup and connection.');
+    toast(cloudStatus, 8000);
+  });
+});
 async function signInWith(provider) {
   if (!auth) return loginMsg('Sign-in is not available right now.');
   loginMsg('Opening sign-in…', true);

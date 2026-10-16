@@ -1,13 +1,14 @@
-# Turn on phone sign-in for Padayon
+# Turn on email sign-in for Padayon
 
-Phone sign-in is handled by Firebase Authentication. You set it up once, then paste 4 values into `firebase-config.js`.
+Email/password sign-in is handled by Firebase Authentication and works on Firebase's no-cost Spark plan. Set it up once, then paste 4 values into `firebase-config.js`.
 
-1. Go to https://console.firebase.google.com and click **Add project**. Name it (for example "padayon").
-2. Open **Build > Authentication > Get started > Sign-in method** and enable **Phone**.
-3. Open **Project settings** (gear icon) > **Your apps** > the web icon `</>` > register an app. Copy `apiKey`, `authDomain`, `projectId`, `appId` into `firebase-config.js`.
+1. Go to https://console.firebase.google.com and open the Padayon project (`padayon-ac669`).
+2. Open **Build > Authentication > Sign-in method** and enable **Email/Password**.
+3. Open **Project settings** (gear icon) > **Your apps** > the web app. Copy `apiKey`, `authDomain`, `projectId`, and `appId` into `firebase-config.js` if they are not already there.
 4. Open **Authentication > Settings > Authorized domains** and add the address where you host Padayon (for example `yourname.netlify.app`). `localhost` is already allowed.
-5. To try it for free, add test phone numbers under Authentication > Sign-in method > Phone. Real text messages have a limited free quota and may need Firebase's pay-as-you-go plan, so check the current Firebase pricing page.
-6. Upload the complete folder to Netlify or GitHub Pages.
+5. Upload the complete folder to Netlify or GitHub Pages.
+
+Padayon supports creating an account, signing in with email and password, and requesting a password reset. Phone sign-in is still available as an alternate, but real SMS may require billing and is not needed for email/password sign-in.
 
 ## Install Padayon
 
@@ -23,5 +24,5 @@ Firebase sign-in itself still needs internet and the project configuration above
 you can use Padayon without an account if Firebase has not been configured.
 
 Notes
-- Each account's files, flashcards, quizzes, plans and tasks are stored on that device only, separately per account. Use Settings > Export / Import backup to move them.
+- Each account's files, flashcards, quizzes, plans and tasks are stored on that device only, separately per account; signing in on another device does not automatically sync them. Use Settings > Export / Import backup to move them.
 - Signing in needs internet. After that, the app works offline.

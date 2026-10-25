@@ -1070,32 +1070,19 @@ const act = {
   toLogin() { localStorage.removeItem('pd_guest'); showLogin(); },
   async signOut(b) {
     if (!me || me.guest) { showLogin(); return; }
-    const uid = me.uid;
     const label = b.textContent;
+    const hasPendingSync = cloudStatus !== 'All changes synced.';
     b.disabled = true; b.textContent = 'Signing out…';
     try {
-      const localRecords = await Promise.all(SYNC_STORES.map(all));
-      const hasLocalData = localRecords.some(records => records.length);
-      const hasPendingRecords = localRecords.some(records => records.some(record => record.cloudSyncPending));
-      const queued = readCloudQueue(uid);
-      if (queued.length || hasPendingRecords) {
-        if (!cloudSyncEnabled) throw new Error('Pending changes cannot be uploaded yet. Reconnect and sync before signing out, or export a backup first.');
-        if (!navigator.onLine) throw new Error('Pending changes cannot sync while offline. Reconnect before signing out so no work is lost.');
-        await syncAccount();
-        const remaining = await Promise.all(SYNC_STORES.map(all));
-        if (readCloudQueue(uid).length || remaining.some(records => records.some(record => record.cloudSyncPending))) {
-          throw new Error('Pending changes could not be synced. Reconnect and try again so no work is lost.');
-        }
-      }
-      if (hasLocalData && !cloudSyncEnabled) {
-        throw new Error('Cloud sync is not ready, so these local files are not backed up. Configure sync or export a backup before signing out.');
-      }
+      if (!auth) throw new Error('Authentication is unavailable. Reload the app and try again.');
+      const { error } = await auth.signOut();
+      if (error) throw error;
       localStorage.removeItem('pd_guest');
-      if (auth) await auth.signOut();
-      else showLogin();
-      toast('Signed out. Your local study data is kept on this device.', 5000);
+      toast(hasPendingSync
+        ? 'Signed out. Local data and pending sync changes are kept on this device.'
+        : 'Signed out. Your local study data is kept on this device.', 5000);
     } catch (err) {
-      toast('Could not safely sign out. ' + (err.message || 'Try again.'), 8000);
+      toast('Could not sign out. ' + (err.message || 'Check your connection and try again.'), 8000);
     } finally {
       if (b.isConnected) { b.disabled = false; b.textContent = label; }
     }

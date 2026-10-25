@@ -383,6 +383,7 @@ function needPdfJs() { if (!window.pdfjsLib) { toast('PDF reader could not be lo
 async function extractText(f) {
   if (f.text && f.pages && f.heads) return f.text;
   if (needPdfJs()) return '';
+  f = await ensureFileBlob(f);
   const pdf = await pdfjsLib.getDocument({ data: await f.blob.arrayBuffer() }).promise;
   const pages = [], perPage = [], sizes = [];
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -408,6 +409,18 @@ async function extractText(f) {
   f.text = pages.join(' ').trim();
   await put('files', f);
   return f.text;
+}
+
+async function ensureFileBlob(f) {
+  if (f.blob instanceof Blob) return f;
+  if (!cloudClient || !me || me.guest || f.cloudBlobOwner !== me.uid || !f.cloudId) {
+    throw new Error('This PDF is not available on this device.');
+  }
+  const { data, error } = await cloudClient.storage.from('user-files').download(cloudFilePath(me.uid, f.cloudId));
+  if (error) throw error;
+  f.blob = data;
+  await saveLocalRecord('files', f, f.id);
+  return f;
 }
 
 // one topic name per page, from the PDF's own headings (or page groups when there are none)
@@ -436,6 +449,7 @@ async function openViewer(id) {
   const box = $('#pages'); box.innerHTML = '<p class="empty">Opening…</p>';
   $('#viewer').classList.add('on');
   try {
+    await ensureFileBlob(f);
     const pdf = await pdfjsLib.getDocument({ data: await f.blob.arrayBuffer() }).promise;
     box.innerHTML = '';
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -638,6 +652,9 @@ let sortBy = 'new', selMode = false;
 const sel = new Set();
 async function renderFiles() {
   const [files, cards, quiz] = await Promise.all([all('files'), all('cards'), all('quiz')]);
+  const cardCounts = new Map(), quizCounts = new Map();
+  for (const c of cards) cardCounts.set(c.fileId, (cardCounts.get(c.fileId) || 0) + 1);
+  for (const q of quiz) quizCounts.set(q.fileId, (quizCounts.get(q.fileId) || 0) + 1);
   const sorters = { new: (a, b) => b.added - a.added, name: (a, b) => a.name.localeCompare(b.name) };
   files.sort(sorters[sortBy]);
   for (const id of [...sel]) if (!files.some(f => f.id === id)) sel.delete(id);
@@ -655,7 +672,7 @@ async function renderFiles() {
     if (names.length > 1 || g) html += `<div class="folderlabel">${esc(g || 'No folder')}</div>`;
     html += '<div class="grid">';
     for (const f of groups[g]) {
-      const nc = cards.filter(c => c.fileId === f.id).length, nq = quiz.filter(q => q.fileId === f.id).length;
+      const nc = cardCounts.get(f.id) || 0, nq = quizCounts.get(f.id) || 0;
       const on = sel.has(f.id);
       html += `<div class="card${on ? ' on' : ''}">
         ${selMode
@@ -928,7 +945,10 @@ async function exportAll() {
   toast('Preparing backup…', 60000);
   const files = await all('files');
   const out = { v: 1, files: [], cards: await all('cards'), quiz: await all('quiz'), plans: await all('plans'), tasks: await all('tasks') };
-  for (const f of files) out.files.push({ ...f, blob: await blobToData(f.blob), text: undefined });
+  for (const f of files) {
+    await ensureFileBlob(f);
+    out.files.push({ ...f, blob: await blobToData(f.blob), text: undefined });
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' }));
   a.download = 'padayon-backup-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -1490,8 +1510,8 @@ async function pushCloudChange(item, uid) {
   }
   const data = await serializeCloudRecord(item.store, record, uid);
   if (item.store === 'files') {
-    if (!(record.blob instanceof Blob)) throw new Error('A PDF is missing from this device: ' + record.name);
     if (record.cloudBlobOwner !== uid) {
+      if (!(record.blob instanceof Blob)) throw new Error('A PDF is missing from this device: ' + record.name);
       cloudStatus = 'Uploading ' + record.name + '…';
       if (tab === 'set') renderSettings();
       const { error } = await cloudClient.storage.from('user-files').upload(data.storagePath, record.blob, {
@@ -1573,9 +1593,7 @@ async function applyCloudRecord(s, remote, local, uid) {
   delete record.store; delete record.deleted; delete record.storagePath; delete record.fileCloudId;
   if (s === 'files') {
     if (!remote.storagePath) throw new Error('Cloud PDF is missing its storage path.');
-    const { data, error } = await cloudClient.storage.from('user-files').download(remote.storagePath);
-    if (error) throw error;
-    record.blob = data;
+    if (local && local.blob instanceof Blob) record.blob = local.blob;
     record.cloudBlobOwner = uid;
   }
   if (s === 'cards' || s === 'quiz') {
@@ -1657,7 +1675,7 @@ async function runAccountSync(silent) {
       }
     }
     cloudSyncReconciling = false;
-    if (await flushCloudQueue()) toast('Study data sync complete.', 3000);
+    if (await flushCloudQueue() && !silent) toast('Study data sync complete.', 3000);
   } catch (e) {
     cloudSyncReconciling = false;
     throw e;

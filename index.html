@@ -1422,6 +1422,7 @@ async function startApp(u) {
   deckSel = 'all'; quizDeck = 'all'; cardFolder = null; fc.queue = null; fc.stats = null; qz.list = null;
   sel.clear(); selMode = false; tab = 'files';
   $('#login').classList.remove('on');
+  render(); checkReminders(); pomoPaint();
   if (!u.guest) {
     try { await syncAccount(); }
     catch (e) {
@@ -1434,7 +1435,10 @@ async function startApp(u) {
   } else {
     cloudSyncEnabled = false; cloudUserId = null; cloudStatus = 'Sign in to sync your study data across devices.';
   }
-  render(); checkReminders(); pomoPaint();
+  if (me && me.uid === u.uid && db) {
+    render();
+    checkReminders();
+  }
 }
 
 const authErrors = {

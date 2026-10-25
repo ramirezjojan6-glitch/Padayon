@@ -306,7 +306,7 @@ html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:
 <div id="login" role="dialog" aria-label="Sign in">
   <div class="card login-card">
     <h1 class="loginlogo" aria-label="Padayon"><span class="pa">PA</span><span class="day">DAYON</span></h1>
-    <p class="mute">Sign in with your email to access your study space. Cloud sync needs to be enabled in Firebase. Email and password sign-in does not require Firebase billing.</p>
+    <p class="mute">Sign in with your email to sync your study space across devices. Supabase provides email/password accounts, private cloud storage and sync on its free tier, subject to its usage limits.</p>
     <form id="emailForm">
       <div id="emailStep">
         <input type="email" id="email" placeholder="Email address" autocomplete="email" required>
@@ -316,16 +316,7 @@ html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:
         <button class="linkbtn" type="button" data-act="resetPassword">Forgot password?</button>
       </div>
     </form>
-    <div id="phoneStep">
-      <input type="tel" id="phone" placeholder="09XX XXX XXXX or +63 9XX XXX XXXX" autocomplete="tel">
-      <button class="b alt" data-act="sendCode" id="sendCode">Send code</button>
-    </div>
-    <div id="codeStep" style="display:none">
-      <input type="text" id="code" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="one-time-code">
-      <button class="b" data-act="verifyCode">Verify and sign in</button>
-    </div>
     <div id="loginMsg" role="status"></div>
-    <button class="linkbtn" id="loginMethodLink" data-act="usePhone">Use phone number instead</button>
     <button class="linkbtn" data-act="guest">Continue without an account</button>
   </div>
 </div>
@@ -333,11 +324,8 @@ html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:
 <input type="file" id="upload" accept="application/pdf,.pdf" multiple hidden>
 <input type="file" id="importer" accept="application/json,.json" hidden>
 
-<script src="vendor/firebase-app-compat.js"></script>
-<script src="vendor/firebase-auth-compat.js"></script>
-<script src="vendor/firebase-firestore-compat.js"></script>
-<script src="vendor/firebase-storage-compat.js"></script>
-<script src="firebase-config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script>
 /* ---------- tiny helpers ---------- */
@@ -351,7 +339,7 @@ const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1
 /* ---------- storage (IndexedDB) ---------- */
 let db;
 const SYNC_STORES = ['files', 'cards', 'quiz', 'plans', 'tasks'];
-let cloudDb = null, cloudStorage = null, cloudUserId = null, cloudSyncEnabled = false;
+let cloudClient = null, cloudUserId = null, cloudSyncEnabled = false;
 let cloudApplyDepth = 0, cloudFlushPromise = null, cloudErrorShown = false, cloudSyncReconciling = false;
 let cloudStatus = 'Sign in to sync your study data across devices.';
 function openDB(name = 'studybox') {
@@ -369,17 +357,23 @@ const get = (s, id) => rq(store(s).get(id));
 const put = async (s, o) => {
   if (me && !me.guest) {
     o.cloudId = o.cloudId || newCloudId();
-    if (!cloudApplyDepth) o.updatedAt = Date.now();
+    if (!cloudApplyDepth) { o.updatedAt = Date.now(); o.cloudSyncPending = true; }
   }
   let id = await rq(store(s, 'readwrite').put(o));
   if (o.id == null) { o.id = id; await rq(store(s, 'readwrite').put(o)); }
-  if (cloudSyncEnabled && !cloudApplyDepth) enqueueCloudChange(s, o.cloudId, id, false, o.updatedAt);
+  if (cloudSyncEnabled && !cloudApplyDepth && !enqueueCloudChange(s, o.cloudId, id, false, o.updatedAt)) {
+    throw new Error('Saved on this device, but the pending cloud sync could not be recorded.');
+  }
   return id;
 };
 const del = async (s, id) => {
   const o = await get(s, id);
+  const queued = cloudSyncEnabled && !cloudApplyDepth && o && o.cloudId;
+  if (queued && !enqueueCloudChange(s, o.cloudId, id, true, Date.now(), true)) {
+    throw new Error('The item was not deleted because its cloud deletion could not be queued.');
+  }
   await rq(store(s, 'readwrite').delete(id));
-  if (cloudSyncEnabled && !cloudApplyDepth && o && o.cloudId) enqueueCloudChange(s, o.cloudId, id, true, Date.now());
+  if (queued) flushCloudQueue();
 };
 
 /* ---------- PDF reading ---------- */
@@ -707,12 +701,29 @@ document.addEventListener('change', async e => {
 
 $('#upload').addEventListener('change', async e => {
   const list = [...e.target.files];
-  for (const file of list) {
-    if (!/pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast(file.name + ' is not a PDF.'); continue; }
-    await put('files', { name: file.name, folder: '', notes: '', blob: file, size: file.size, added: Date.now() });
+  let added = 0, saveError = '';
+  toast('Saving files on this device…', 60000);
+  try {
+    for (const file of list) {
+      if (!/pdf$/i.test(file.name) && file.type !== 'application/pdf') { toast(file.name + ' is not a PDF.'); continue; }
+      if (file.size > 50 * 1024 * 1024) { toast(file.name + ' is larger than the 50 MiB cloud file limit.'); continue; }
+      await put('files', { name: file.name, folder: '', notes: '', blob: file, size: file.size, added: Date.now() });
+      added++;
+    }
+  } catch (err) {
+    saveError = err.message || 'The save failed.';
   }
   e.target.value = '';
-  if (list.length) toast(list.length + ' file(s) added');
+  if (saveError) {
+    toast('Could not finish saving every file. ' + added + ' file(s) were saved. ' + saveError, 9000);
+  } else if (added && me && !me.guest) {
+    if (!navigator.onLine) toast(added + ' file(s) saved locally. Offline; they will sync when you reconnect.', 6000);
+    else if (!cloudSyncEnabled) toast(added + ' file(s) saved locally, but cloud sync is unavailable. ' + cloudStatus, 8000);
+    else if (await flushCloudQueue()) toast(added + ' file(s) uploaded and synced.', 3500);
+    else toast(added + ' file(s) saved locally; cloud upload failed and will retry. ' + cloudStatus, 8000);
+  } else if (added) {
+    toast(added + ' file(s) added on this device.');
+  }
   render();
 });
 
@@ -887,8 +898,8 @@ function renderSettings() {
   const key = localStorage.getItem(keyName()) || '';
   const th = localStorage.getItem('pd_theme') || 'auto';
   const acct = (me && !me.guest)
-    ? `<h2 style="margin-top:0">Account</h2><div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your account identifies you across devices. Cloud sync must be configured in Firebase to share files and study data.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
-    : `<h2 style="margin-top:0">Account</h2><div class="card"><p class="mute" style="margin-top:0">You are using Padayon without an account. Sign in with your email to sync your study material across devices after cloud sync is configured.</p><button class="b" data-act="toLogin">Sign in</button></div>`;
+    ? `<h2 style="margin-top:0">Account</h2>    <div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your files and study data are private to your account. Signing out clears this device's local copy; synced data remains in your account.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
+    : `<h2 style="margin-top:0">Account</h2><div class="card"><p class="mute" style="margin-top:0">You are using Padayon without an account. Sign in with your email to sync your study material across devices.</p><button class="b" data-act="toLogin">Sign in</button></div>`;
   const notif = !('Notification' in window) ? '' : Notification.permission === 'granted' ? '<p class="mute" style="margin:0">Notifications are on.</p>'
     : Notification.permission === 'denied' ? '<p class="mute" style="margin:0">Notifications are blocked. Turn them on for this site in your browser settings.</p>'
     : '<button class="b" data-act="askNotif">Turn on notifications</button>';
@@ -899,7 +910,7 @@ function renderSettings() {
     <h2>Reminders</h2>
     <div class="card"><p class="mute" style="margin-top:0">Padayon reminds you 1 hour and 30 minutes before each task deadline while the app is open. To get reminders even when the app is closed, tap "Phone reminder" on a task to add it to your phone's calendar.</p>${notif}</div>
     <h2>Cloud sync</h2>
-    <div class="card"><p class="mute" style="margin-top:0">${esc(cloudStatus)} PDFs, flashcards, quizzes, plans and tasks sync to your signed-in account when Firebase cloud services are configured. Changes also stay on this device for offline use.</p>
+    <div class="card"><p class="mute" style="margin-top:0">${esc(cloudStatus)} PDFs, flashcards, quizzes, plans and tasks sync to your signed-in account when Supabase is configured. Changes also stay on this device for offline use.</p>
       <button class="b alt" data-act="syncNow" ${me && !me.guest ? '' : 'disabled'}>Sync now</button></div>
     <h2>Backup</h2>
     <div class="card"><p class="mute" style="margin-top:0">Cloud sync is not a substitute for a separate backup. Export a backup from time to time.</p>
@@ -1030,35 +1041,52 @@ const act = {
   endQuiz() { qz.list = null; renderQuiz(); },
   saveKey() { const v = $('#key').value.trim(); if (v) { localStorage.setItem(keyName(), v); toast('Code saved', 1500); } renderSettings(); },
   clearKey() { localStorage.removeItem(keyName()); toast('Code removed', 1500); renderSettings(); },
-  gLogin: () => signInWith(new firebase.auth.GoogleAuthProvider()),
-  fLogin: () => signInWith(new firebase.auth.FacebookAuthProvider()),
   signInEmail: signInEmail,
   createEmail: createEmail,
   resetPassword: resetPassword,
-  sendCode: sendCode,
-  verifyCode: verifyCode,
-  usePhone() {
-    $('#emailStep').style.display = 'none'; $('#phoneStep').style.display = '';
-    $('#codeStep').style.display = 'none'; $('#phone').focus(); loginMsg('');
-    $('#loginMethodLink').dataset.act = 'useEmail'; $('#loginMethodLink').textContent = 'Use email instead';
-  },
-  useEmail() {
-    $('#emailStep').style.display = ''; $('#phoneStep').style.display = 'none';
-    $('#codeStep').style.display = 'none'; $('#email').focus(); loginMsg('');
-    $('#loginMethodLink').dataset.act = 'usePhone'; $('#loginMethodLink').textContent = 'Use phone number instead';
-  },
   guest() { localStorage.setItem('pd_guest', '1'); startApp(GUEST); },
   toLogin() { localStorage.removeItem('pd_guest'); showLogin(); },
-  async signOut() {
-    localStorage.removeItem('pd_guest');
-    if (auth && auth.currentUser) await auth.signOut(); else showLogin();
+  async signOut(b) {
+    if (!me || me.guest) { showLogin(); return; }
+    const uid = me.uid;
+    const label = b.textContent;
+    b.disabled = true; b.textContent = 'Signing out…';
+    try {
+      const localRecords = await Promise.all(SYNC_STORES.map(all));
+      const hasLocalData = localRecords.some(records => records.length);
+      const hasPendingRecords = localRecords.some(records => records.some(record => record.cloudSyncPending));
+      const queued = readCloudQueue(uid);
+      if (queued.length || hasPendingRecords) {
+        if (!cloudSyncEnabled) throw new Error('Pending changes cannot be uploaded yet. Reconnect and sync before signing out, or export a backup first.');
+        if (!navigator.onLine) throw new Error('Pending changes cannot sync while offline. Reconnect before signing out so no work is lost.');
+        await syncAccount();
+        const remaining = await Promise.all(SYNC_STORES.map(all));
+        if (readCloudQueue(uid).length || remaining.some(records => records.some(record => record.cloudSyncPending))) {
+          throw new Error('Pending changes could not be synced. Reconnect and try again so no work is lost.');
+        }
+      }
+      if (hasLocalData && !cloudSyncEnabled) {
+        throw new Error('Cloud sync is not ready, so these local files are not backed up. Configure sync or export a backup before signing out.');
+      }
+      await clearLocalAccountData(uid);
+      localStorage.removeItem('pd_guest');
+      if (auth) await auth.signOut();
+      else showLogin();
+      toast('Signed out. Local study data cleared; your synced cloud copy is unchanged.', 5000);
+    } catch (err) {
+      toast('Could not safely sign out. ' + (err.message || 'Try again.'), 8000);
+    } finally {
+      if (b.isConnected) { b.disabled = false; b.textContent = label; }
+    }
   },
   export: exportAll,
   import: () => $('#importer').click(),
   syncNow() {
     if (!me || me.guest) return toast('Sign in to sync across devices.');
     syncAccount().catch(e => {
-      cloudStatus = 'Sync unavailable: ' + (e.message || 'check Firebase setup and connection.');
+      cloudStatus = navigator.onLine
+        ? 'Sync unavailable: ' + (e.message || 'check Supabase setup and connection.')
+        : 'Offline — changes are saved on this device and will sync when you reconnect.';
       toast(cloudStatus, 8000); renderSettings();
     });
   },
@@ -1099,7 +1127,7 @@ document.querySelectorAll('.folder').forEach(el => el.addEventListener('click', 
 }));
 
 /* ---------- account state (declared early: other code uses it) ---------- */
-let me = null, auth = null, confirmation = null, recaptcha = null;
+let me = null, auth = null;
 const GUEST = { guest: true, uid: 'guest', name: 'Guest', detail: '' };
 const keyName = () => (!me || me.guest) ? 'sb_key' : 'sb_key_' + me.uid;
 
@@ -1337,22 +1365,25 @@ Object.assign(act, {
 pomoPaint();
 
 /* ---------- accounts and sign-in ---------- */
-const fbReady = () => !!(window.firebase && window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.apiKey && !/^YOUR/.test(window.FIREBASE_CONFIG.apiKey));
+const supabaseReady = () => !!(
+  window.supabase && window.SUPABASE_CONFIG
+  && /^https:\/\/[^/]+\.supabase\.co$/.test(window.SUPABASE_CONFIG.url || '')
+  && window.SUPABASE_CONFIG.anonKey && !/^YOUR/.test(window.SUPABASE_CONFIG.anonKey)
+);
 const loginMsg = (t, ok) => { const m = $('#loginMsg'); m.textContent = t || ''; m.style.color = ok ? 'var(--ok)' : 'var(--bad)'; };
 
 function showLogin() {
-  confirmation = null;
-  $('#emailStep').style.display = ''; $('#phoneStep').style.display = 'none'; $('#codeStep').style.display = 'none';
-  $('#loginMethodLink').dataset.act = 'usePhone'; $('#loginMethodLink').textContent = 'Use phone number instead';
+  $('#emailStep').style.display = '';
   $('#viewer').classList.remove('on');
-  const ready = fbReady();
-  document.querySelectorAll('[data-act="signInEmail"],[data-act="createEmail"],[data-act="resetPassword"],#sendCode').forEach(b => { b.disabled = !ready; });
-  loginMsg(ready ? '' : 'Sign-in is not available right now. It needs an internet connection, or it has not been set up yet. You can continue without an account.');
+  const ready = supabaseReady();
+  document.querySelectorAll('[data-act="signInEmail"],[data-act="createEmail"],[data-act="resetPassword"]').forEach(b => { b.disabled = !ready; });
+  loginMsg(ready ? '' : 'Sign-in is not configured yet. Add your Supabase URL and anon key to supabase-config.js, or continue without an account.');
   $('#login').classList.add('on');
 }
 
 async function startApp(u) {
   me = u;
+  cloudUserId = u.guest ? null : u.uid;
   cloudSyncEnabled = false; cloudSyncReconciling = false;
   if (db) { db.close(); db = null; }
   await openDB(u.guest ? 'studybox' : 'padayon-' + u.uid);   // each account gets its own database
@@ -1363,7 +1394,9 @@ async function startApp(u) {
     try { await syncAccount(); }
     catch (e) {
       cloudSyncReconciling = false;
-      cloudStatus = 'Sync unavailable: ' + (e.message || 'check Firebase setup and connection.');
+      cloudStatus = navigator.onLine
+        ? 'Sync unavailable: ' + (e.message || 'check Supabase setup and connection.')
+        : 'Offline — changes are saved on this device and will sync when you reconnect.';
       toast('Your data is saved on this device, but cloud sync failed. ' + cloudStatus, 9000);
     }
   } else {
@@ -1389,41 +1422,41 @@ const authErrors = {
   'auth/invalid-verification-code': 'That code is not correct. Check it and try again.',
   'auth/code-expired': 'That code has expired. Send a new one.',
   'auth/network-request-failed': navigator.onLine
-    ? 'Could not reach Firebase Authentication. Your device may still be online; try another network or check whether browser or network filtering blocks Google services.'
+    ? 'Could not reach Supabase Authentication. Your device may still be online; check your connection and try again.'
     : 'No internet connection. Reconnect and try again.',
-  'auth/operation-not-allowed': 'This sign-in method is disabled in Firebase. Enable Email/Password (or Phone, if using SMS) under Authentication > Sign-in method.',
+  'auth/operation-not-allowed': 'Email/password sign-in is disabled in Supabase Authentication. Enable Email under Authentication > Providers.',
   'auth/captcha-check-failed': 'Phone verification could not complete its security check. Reload the page and try again with Google reCAPTCHA allowed.',
-  'auth/unauthorized-domain': 'This web address is not allowed yet. Add it under Authorized domains in Firebase.'
+  'auth/unauthorized-domain': 'This web address is not allowed yet. Add it under Supabase Authentication > URL Configuration.'
 };
 function newCloudId() {
   if (crypto.randomUUID) return crypto.randomUUID();
   return [...crypto.getRandomValues(new Uint8Array(16))].map(n => n.toString(16).padStart(2, '0')).join('');
 }
 function cloudQueueKey(uid = cloudUserId) { return 'pd_cloud_queue_' + uid; }
-function readCloudQueue() {
-  try { return JSON.parse(localStorage.getItem(cloudQueueKey()) || '[]'); }
+function readCloudQueue(uid = cloudUserId) {
+  try { return JSON.parse(localStorage.getItem(cloudQueueKey(uid)) || '[]'); }
   catch (e) { throw new Error('The pending sync queue could not be read: ' + e.message); }
 }
-function enqueueCloudChange(s, cloudId, id, deleted, updatedAt) {
+function enqueueCloudChange(s, cloudId, id, deleted, updatedAt, deferFlush = false) {
   try {
     const queue = readCloudQueue(), key = s + ':' + cloudId;
     const item = { store: s, cloudId, id, deleted, updatedAt: updatedAt || Date.now() };
     const at = queue.findIndex(x => x.store + ':' + x.cloudId === key);
     if (at < 0) queue.push(item); else queue[at] = item;
     localStorage.setItem(cloudQueueKey(), JSON.stringify(queue));
-    if (cloudSyncEnabled && !cloudSyncReconciling) flushCloudQueue();
+    if (cloudSyncEnabled && !cloudSyncReconciling && !deferFlush) flushCloudQueue();
   } catch (e) {
     cloudStatus = 'Could not save pending sync: ' + e.message;
+    if (tab === 'set') renderSettings();
     toast(cloudStatus, 8000);
+    return false;
   }
-}
-function cloudRecords(uid = cloudUserId) {
-  return cloudDb.collection('users').doc(uid).collection('records');
+  return true;
 }
 function cloudFilePath(uid, cloudId) { return 'users/' + uid + '/files/' + cloudId + '.pdf'; }
 async function serializeCloudRecord(s, o, uid) {
   const data = { ...o };
-  delete data.id; delete data.blob; delete data.text; delete data.pages; delete data.heads; delete data.cloudBlobOwner;
+  delete data.id; delete data.blob; delete data.text; delete data.pages; delete data.heads; delete data.cloudBlobOwner; delete data.cloudSyncPending;
   data.store = s; data.cloudId = o.cloudId; data.updatedAt = o.updatedAt || Date.now(); data.deleted = false;
   if (s === 'files') data.storagePath = cloudFilePath(uid, o.cloudId);
   if (s === 'cards' || s === 'quiz') {
@@ -1433,16 +1466,22 @@ async function serializeCloudRecord(s, o, uid) {
   }
   return JSON.parse(JSON.stringify(data));
 }
+async function upsertCloudRecord(uid, cloudId, s, data) {
+  const { error } = await cloudClient.from('user_records').upsert({
+    user_id: uid, cloud_id: cloudId, store: s, data,
+    updated_at: data.updatedAt || Date.now(), deleted: !!data.deleted
+  }, { onConflict: 'user_id,cloud_id' });
+  if (error) throw error;
+}
 async function pushCloudChange(item, uid) {
-  const ref = cloudRecords(uid).doc(item.cloudId);
   if (item.deleted) {
     const tombstone = { store: item.store, cloudId: item.cloudId, updatedAt: item.updatedAt, deleted: true };
     if (item.store === 'files') tombstone.storagePath = cloudFilePath(uid, item.cloudId);
-    await ref.set(tombstone);
     if (item.store === 'files') {
-      try { await cloudStorage.ref(cloudFilePath(uid, item.cloudId)).delete(); }
-      catch (e) { if (e.code !== 'storage/object-not-found') throw e; }
+      const { error } = await cloudClient.storage.from('user-files').remove([cloudFilePath(uid, item.cloudId)]);
+      if (error) throw error;
     }
+    await upsertCloudRecord(uid, item.cloudId, item.store, tombstone);
     return;
   }
   const record = await get(item.store, item.id);
@@ -1453,15 +1492,28 @@ async function pushCloudChange(item, uid) {
   if (item.store === 'files') {
     if (!(record.blob instanceof Blob)) throw new Error('A PDF is missing from this device: ' + record.name);
     if (record.cloudBlobOwner !== uid) {
-      await cloudStorage.ref(data.storagePath).put(record.blob, { contentType: 'application/pdf' });
+      cloudStatus = 'Uploading ' + record.name + '…';
+      if (tab === 'set') renderSettings();
+      const { error } = await cloudClient.storage.from('user-files').upload(data.storagePath, record.blob, {
+        contentType: 'application/pdf', upsert: true
+      });
+      if (error) throw error;
       record.cloudBlobOwner = uid;
       await saveLocalRecord('files', record, record.id);
     }
   }
-  await ref.set(data);
+  await upsertCloudRecord(uid, item.cloudId, item.store, data);
+  record.cloudSyncPending = false;
+  await saveLocalRecord(item.store, record, record.id);
 }
 async function flushCloudQueue() {
-  if (!cloudSyncEnabled || !navigator.onLine || cloudFlushPromise) return cloudFlushPromise;
+  if (!cloudSyncEnabled) return false;
+  if (!navigator.onLine) {
+    cloudStatus = 'Offline — changes are saved on this device and will sync when you reconnect.';
+    if (tab === 'set') renderSettings();
+    return false;
+  }
+  if (cloudFlushPromise) return cloudFlushPromise;
   const uid = cloudUserId;
   cloudFlushPromise = (async () => {
     let queue = readCloudQueue();
@@ -1481,7 +1533,8 @@ async function flushCloudQueue() {
     if (tab === 'set') renderSettings();
     return true;
   })().catch(e => {
-    cloudStatus = 'Sync pending: ' + (e.message || 'Firebase request failed.');
+    cloudStatus = 'Sync pending: ' + (e.message || 'Supabase request failed.');
+    if (tab === 'set') renderSettings();
     if (!cloudErrorShown) toast('Saved on this device; cloud sync is pending. ' + cloudStatus, 8000);
     cloudErrorShown = true;
     return false;
@@ -1497,6 +1550,19 @@ async function saveLocalRecord(s, record, id) {
     return record;
   } finally { cloudApplyDepth--; }
 }
+async function clearLocalAccountData(uid) {
+  if (!db) throw new Error('The local study database is not open.');
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(SYNC_STORES, 'readwrite');
+    SYNC_STORES.forEach(s => tx.objectStore(s).clear());
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error || new Error('Could not clear the local study data.'));
+    tx.onabort = () => reject(tx.error || new Error('The local data cleanup was interrupted.'));
+  });
+  localStorage.removeItem(cloudQueueKey(uid));
+  localStorage.removeItem('pd_folders_' + uid);
+  localStorage.removeItem('sb_key_' + uid);
+}
 async function removeLocalRecord(s, id) {
   cloudApplyDepth++;
   try { await rq(store(s, 'readwrite').delete(id)); }
@@ -1507,8 +1573,9 @@ async function applyCloudRecord(s, remote, local, uid) {
   delete record.store; delete record.deleted; delete record.storagePath; delete record.fileCloudId;
   if (s === 'files') {
     if (!remote.storagePath) throw new Error('Cloud PDF is missing its storage path.');
-    const bytes = await cloudStorage.ref(remote.storagePath).getBytes(Math.max(remote.size || 0, 1));
-    record.blob = new Blob([bytes], { type: 'application/pdf' });
+    const { data, error } = await cloudClient.storage.from('user-files').download(remote.storagePath);
+    if (error) throw error;
+    record.blob = data;
     record.cloudBlobOwner = uid;
   }
   if (s === 'cards' || s === 'quiz') {
@@ -1519,21 +1586,27 @@ async function applyCloudRecord(s, remote, local, uid) {
   return saveLocalRecord(s, record, local && local.id);
 }
 async function syncAccount() {
-  const user = auth && auth.currentUser;
-  if (!user || !db) return;
-  if (!firebase.firestore || !firebase.storage) throw new Error('Firestore or Storage SDK did not load. Reload the app and try again.');
-  if (!FIREBASE_CONFIG.storageBucket || /^YOUR/.test(FIREBASE_CONFIG.storageBucket)) {
-    throw new Error('Create a Firebase Storage bucket and add its name as storageBucket in firebase-config.js.');
+  if (!auth || !db || !cloudClient) return;
+  if (!navigator.onLine) {
+    cloudStatus = 'Offline — changes are saved on this device and will sync when you reconnect.';
+    if (tab === 'set') renderSettings();
+    return false;
   }
-  cloudDb = firebase.firestore();
-  cloudStorage = firebase.storage();
-  cloudUserId = user.uid; cloudSyncEnabled = true; cloudSyncReconciling = true;
+  const { data: { user }, error: authError } = await auth.getUser();
+  if (authError) throw authError;
+  if (!user) return;
+  cloudUserId = user.id; cloudSyncEnabled = true; cloudSyncReconciling = true;
   cloudStatus = 'Syncing study data…';
   toast('Syncing your study data across devices…', 60000);
 
   try {
-    const snapshot = await cloudRecords(user.uid).get();
-    const remoteById = new Map(snapshot.docs.map(doc => [doc.id, doc.data()]));
+    const { data: rows, error } = await cloudClient.from('user_records')
+      .select('cloud_id, store, data, updated_at, deleted');
+    if (error) throw error;
+    const remoteById = new Map(rows.map(row => [row.cloud_id, {
+      ...row.data, store: row.store, cloudId: row.cloud_id,
+      updatedAt: Number(row.updated_at), deleted: row.deleted
+    }]));
     const pending = new Map(readCloudQueue().map(item => [item.store + ':' + item.cloudId, item]));
     const locals = new Map();
     for (const s of SYNC_STORES) {
@@ -1548,28 +1621,29 @@ async function syncAccount() {
     }
 
     const storeOrder = ['files', 'cards', 'quiz', 'plans', 'tasks'];
-    for (const [cloudId, remote] of remoteById) {
-      const s = remote.store;
-      if (!storeOrder.includes(s)) continue;
-      const records = locals.get(s);
-      const local = records.find(record => record.cloudId === cloudId);
-      const queued = pending.get(s + ':' + cloudId);
-      if (queued && queued.deleted) continue;
-      const localTime = local ? local.updatedAt || 1 : 0;
-      const remoteTime = remote.updatedAt || 1;
-      if (remote.deleted) {
-        if (local && remoteTime >= localTime && !queued) {
-          await removeLocalRecord(s, local.id);
-          records.splice(records.indexOf(local), 1);
-        } else if (local) enqueueCloudChange(s, cloudId, local.id, false, localTime);
-        continue;
-      }
-      if (!local || (remoteTime > localTime && !queued)) {
-        const merged = await applyCloudRecord(s, remote, local, user.uid);
-        if (local) records[records.indexOf(local)] = merged;
-        else records.push(merged);
-      } else if (local) {
-        enqueueCloudChange(s, cloudId, local.id, false, localTime);
+    for (const s of storeOrder) {
+      for (const [cloudId, remote] of remoteById) {
+        if (remote.store !== s) continue;
+        const records = locals.get(s);
+        const local = records.find(record => record.cloudId === cloudId);
+        const queued = pending.get(s + ':' + cloudId);
+        if (queued && queued.deleted) continue;
+        const localTime = local ? local.updatedAt || 1 : 0;
+        const remoteTime = remote.updatedAt || 1;
+        if (remote.deleted) {
+          if (local && remoteTime >= localTime && !queued && !local.cloudSyncPending) {
+            await removeLocalRecord(s, local.id);
+            records.splice(records.indexOf(local), 1);
+          } else if (local) enqueueCloudChange(s, cloudId, local.id, false, localTime);
+          continue;
+        }
+        if (!local || (remoteTime > localTime && !queued && !local.cloudSyncPending)) {
+          const merged = await applyCloudRecord(s, remote, local, user.id);
+          if (local) records[records.indexOf(local)] = merged;
+          else records.push(merged);
+        } else if (local) {
+          enqueueCloudChange(s, cloudId, local.id, false, localTime);
+        }
       }
     }
     for (const s of storeOrder) {
@@ -1586,20 +1660,20 @@ async function syncAccount() {
 }
 window.addEventListener('online', () => {
   if (me && !me.guest && db) syncAccount().catch(e => {
-    cloudStatus = 'Sync unavailable: ' + (e.message || 'check Firebase setup and connection.');
+    cloudStatus = navigator.onLine
+      ? 'Sync unavailable: ' + (e.message || 'check Supabase setup and connection.')
+      : 'Offline — changes are saved on this device and will sync when you reconnect.';
+    if (tab === 'set') renderSettings();
     toast(cloudStatus, 8000);
   });
 });
-async function signInWith(provider) {
-  if (!auth) return loginMsg('Sign-in is not available right now.');
-  loginMsg('Opening sign-in…', true);
-  try { await auth.signInWithPopup(provider); }
-  catch (e) {
-    if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(e.code)) { try { return await auth.signInWithRedirect(provider); } catch (e2) { e = e2; } }
-    if (e.code === 'auth/popup-closed-by-user' || e.code === 'auth/cancelled-popup-request') return loginMsg('');
-    loginMsg(authErrors[e.code] || 'Could not sign in. ' + (e.message || ''));
+window.addEventListener('offline', () => {
+  if (me && !me.guest) {
+    cloudStatus = 'Connection lost — changes are saved on this device and will sync when you reconnect.';
+    if (tab === 'set') renderSettings();
+    toast(cloudStatus, 6000);
   }
-}
+});
 function emailAddress() {
   const input = $('#email');
   const email = input.value.trim();
@@ -1614,8 +1688,10 @@ async function signInEmail() {
   const password = $('#password').value;
   if (!password) { loginMsg('Enter your password.'); $('#password').focus(); return; }
   loginMsg('Signing in…', true);
-  try { await auth.signInWithEmailAndPassword(email, password); }
-  catch (e) { loginMsg(authErrors[e.code] || 'Could not sign in. ' + (e.message || '')); }
+  try {
+    const { error } = await auth.signInWithPassword({ email, password });
+    if (error) loginMsg(error.message || 'Could not sign in. Check your email and password.');
+  } catch (e) { loginMsg('Could not reach Supabase. ' + (e.message || 'Check your connection and try again.')); }
 }
 async function createEmail() {
   if (!auth) return loginMsg('Sign-in is not available right now.');
@@ -1624,8 +1700,11 @@ async function createEmail() {
   const password = $('#password').value;
   if (password.length < 6) { loginMsg('Choose a password with at least 6 characters.'); $('#password').focus(); return; }
   loginMsg('Creating account…', true);
-  try { await auth.createUserWithEmailAndPassword(email, password); }
-  catch (e) { loginMsg(authErrors[e.code] || 'Could not create the account. ' + (e.message || '')); }
+  try {
+    const { data, error } = await auth.signUp({ email, password });
+    if (error) loginMsg(error.message || 'Could not create the account.');
+    else if (!data.session) loginMsg('Check your email to confirm your account, then sign in.', true);
+  } catch (e) { loginMsg('Could not reach Supabase. ' + (e.message || 'Check your connection and try again.')); }
 }
 async function resetPassword() {
   if (!auth) return loginMsg('Sign-in is not available right now.');
@@ -1633,47 +1712,26 @@ async function resetPassword() {
   if (!email) return;
   loginMsg('Sending password reset email…', true);
   try {
-    await auth.sendPasswordResetEmail(email);
-    loginMsg('If an account exists for that address, a password reset email is on its way.', true);
-  } catch (e) { loginMsg(authErrors[e.code] || 'Could not send the password reset email. ' + (e.message || '')); }
-}
-function normalizePhone(v) {
-  const s = v.replace(/[\s\-()]/g, '');
-  if (/^\+\d{8,15}$/.test(s)) return s;
-  if (/^0\d{10}$/.test(s)) return '+63' + s.slice(1);   // Philippine mobile: 09XXXXXXXXX
-  if (/^63\d{10}$/.test(s)) return '+' + s;
-  return null;
-}
-async function sendCode() {
-  if (!auth) return loginMsg('Sign-in is not available right now.');
-  const num = normalizePhone($('#phone').value);
-  if (!num) return loginMsg('Enter your number like 09XX XXX XXXX or +63 9XX XXX XXXX.');
-  loginMsg('Sending code…', true);
-  try {
-    recaptcha = recaptcha || new firebase.auth.RecaptchaVerifier('sendCode', { size: 'invisible' });
-    confirmation = await auth.signInWithPhoneNumber(num, recaptcha);
-    $('#phoneStep').style.display = 'none'; $('#codeStep').style.display = '';
-    loginMsg('Code sent to ' + num + '.', true); $('#code').focus();
-  } catch (e) {
-    try { recaptcha && recaptcha.clear(); } catch (_) {} recaptcha = null;
-    loginMsg(authErrors[e.code] || 'Could not send the code. ' + (e.message || ''));
-  }
-}
-async function verifyCode() {
-  const c = $('#code').value.trim();
-  if (!confirmation || c.length < 4) return loginMsg('Enter the code from the text message.');
-  try { await confirmation.confirm(c); } catch (e) { loginMsg(authErrors[e.code] || 'Could not verify the code.'); }
+    const { error } = await auth.resetPasswordForEmail(email);
+    if (error) loginMsg(error.message || 'Could not send the password reset email.');
+    else loginMsg('If an account exists for that address, a password reset email is on its way.', true);
+  } catch (e) { loginMsg('Could not reach Supabase. ' + (e.message || 'Check your connection and try again.')); }
 }
 
 /* ---------- start ---------- */
 (function boot() {
-  if (fbReady()) {
-    if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
-    auth = firebase.auth();
-    auth.onAuthStateChanged(u => {
-      if (u) { localStorage.removeItem('pd_guest'); startApp({ uid: u.uid, name: u.displayName || '', detail: u.email || u.phoneNumber || '' }); }
-      else if (localStorage.getItem('pd_guest')) startApp(GUEST);
-      else showLogin();
+  if (supabaseReady()) {
+    cloudClient = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
+    auth = cloudClient.auth;
+    auth.onAuthStateChange((event, session) => {
+      setTimeout(() => {
+        const user = session && session.user;
+        if (user) {
+          localStorage.removeItem('pd_guest');
+          startApp({ uid: user.id, name: user.user_metadata && user.user_metadata.full_name || '', detail: user.email || '' });
+        } else if (localStorage.getItem('pd_guest')) startApp(GUEST);
+        else showLogin();
+      }, 0);
     });
   } else if (localStorage.getItem('pd_guest')) startApp(GUEST);
   else showLogin();

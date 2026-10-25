@@ -1,8 +1,6 @@
-const CACHE = 'padayon-v8';
+const CACHE = 'padayon-v9';
 const SHELL = [
-  './', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './firebase-config.js',
-  './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js',
-  './vendor/firebase-firestore-compat.js', './vendor/firebase-storage-compat.js',
+  './', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './supabase-config.js',
   './vendor/pdf.min.js', './vendor/pdf.worker.min.js'
 ];
 
@@ -32,7 +30,7 @@ self.addEventListener('fetch', e => {
     const same = url.origin === self.location.origin;
     if (same) {
       try {
-        const res = url.pathname.endsWith('/firebase-config.js')
+        const res = url.pathname.endsWith('/supabase-config.js')
           ? await fetch(req, { cache: 'no-store' })
           : await fetch(req);
         if (res && res.ok) { const c = await caches.open(CACHE); c.put(req, res.clone()); }

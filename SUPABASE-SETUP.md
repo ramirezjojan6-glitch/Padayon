@@ -14,7 +14,7 @@ Padayon uses Supabase Auth, Postgres and private Storage for account sync and PD
 
 The app stores PDF objects in the private `user-files` bucket at `{user-id}/files/{file-id}.pdf` and record metadata in `public.user_records`. Row-level security and Storage policies only allow the authenticated user to access records and objects under their own user ID. The SQL configures a 50 MiB per-PDF limit to match the Supabase Free plan's file-size restriction.
 
-Offline edits remain in the device's IndexedDB and sync queue, and are uploaded when connectivity returns. Sign out clears the local account data after pending changes sync; if sync is unavailable, sign-out is blocked to protect the only copy. Keep using **Settings > Export backup** as a separate backup.
+Offline edits remain in the device's IndexedDB and sync queue, and are uploaded when connectivity returns. While Padayon is open, it checks for changes from other devices every minute and when you return to the app; updates sync sooner when you open the app or tap **Settings > Sync now**. Sign out clears the local account data after pending changes sync; if sync is unavailable, sign-out is blocked to protect the only copy. Keep using **Settings > Export backup** as a separate backup.
 
 Existing Firebase/guest data is not automatically transferred to Supabase. Before switching, sign in to the old account or use guest mode on the device that has the data, export a backup, then sign into the new Supabase account and import that backup.
 

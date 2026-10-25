@@ -340,7 +340,7 @@ const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1
 let db;
 const SYNC_STORES = ['files', 'cards', 'quiz', 'plans', 'tasks'];
 let cloudClient = null, cloudUserId = null, cloudSyncEnabled = false;
-let cloudApplyDepth = 0, cloudFlushPromise = null, cloudErrorShown = false, cloudSyncReconciling = false;
+let cloudApplyDepth = 0, cloudFlushPromise = null, cloudAccountSyncPromise = null, cloudErrorShown = false, cloudSyncReconciling = false;
 let cloudStatus = 'Sign in to sync your study data across devices.';
 function openDB(name = 'studybox') {
   return new Promise((res, rej) => {
@@ -1453,7 +1453,7 @@ function enqueueCloudChange(s, cloudId, id, deleted, updatedAt, deferFlush = fal
   }
   return true;
 }
-function cloudFilePath(uid, cloudId) { return 'users/' + uid + '/files/' + cloudId + '.pdf'; }
+function cloudFilePath(uid, cloudId) { return uid + '/files/' + cloudId + '.pdf'; }
 async function serializeCloudRecord(s, o, uid) {
   const data = { ...o };
   delete data.id; delete data.blob; delete data.text; delete data.pages; delete data.heads; delete data.cloudBlobOwner; delete data.cloudSyncPending;
@@ -1585,7 +1585,12 @@ async function applyCloudRecord(s, remote, local, uid) {
   if (local) record.id = local.id;
   return saveLocalRecord(s, record, local && local.id);
 }
-async function syncAccount() {
+function syncAccount(silent = false) {
+  if (cloudAccountSyncPromise) return cloudAccountSyncPromise;
+  cloudAccountSyncPromise = runAccountSync(silent).finally(() => { cloudAccountSyncPromise = null; });
+  return cloudAccountSyncPromise;
+}
+async function runAccountSync(silent) {
   if (!auth || !db || !cloudClient) return;
   if (!navigator.onLine) {
     cloudStatus = 'Offline — changes are saved on this device and will sync when you reconnect.';
@@ -1597,7 +1602,7 @@ async function syncAccount() {
   if (!user) return;
   cloudUserId = user.id; cloudSyncEnabled = true; cloudSyncReconciling = true;
   cloudStatus = 'Syncing study data…';
-  toast('Syncing your study data across devices…', 60000);
+  if (!silent) toast('Syncing your study data across devices…', 60000);
 
   try {
     const { data: rows, error } = await cloudClient.from('user_records')
@@ -1667,6 +1672,18 @@ window.addEventListener('online', () => {
     toast(cloudStatus, 8000);
   });
 });
+function syncAutomatically() {
+  if (!me || me.guest || !db || !navigator.onLine || document.hidden) return;
+  syncAccount(true).catch(e => {
+    cloudStatus = navigator.onLine
+      ? 'Sync unavailable: ' + (e.message || 'check Supabase setup and connection.')
+      : 'Offline — changes are saved on this device and will sync when you reconnect.';
+    if (tab === 'set') renderSettings();
+  });
+}
+setInterval(syncAutomatically, 60000);
+window.addEventListener('focus', syncAutomatically);
+document.addEventListener('visibilitychange', syncAutomatically);
 window.addEventListener('offline', () => {
   if (me && !me.guest) {
     cloudStatus = 'Connection lost — changes are saved on this device and will sync when you reconnect.';

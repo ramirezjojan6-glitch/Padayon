@@ -916,7 +916,7 @@ function renderSettings() {
   const key = localStorage.getItem(keyName()) || '';
   const th = localStorage.getItem('pd_theme') || 'auto';
   const acct = (me && !me.guest)
-    ? `<h2 style="margin-top:0">Account</h2>    <div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your files and study data are private to your account. Signing out clears this device's local copy; synced data remains in your account.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
+    ? `<h2 style="margin-top:0">Account</h2>    <div class="card"><b>${esc(me.name || 'Signed in')}</b><br><small>${esc(me.detail)}</small><p class="mute" style="margin-bottom:10px">Your files and study data are private to your account. Signing out keeps this account's local copy on this device; synced data also remains in your account.</p><button class="b alt" data-act="signOut">Sign out</button></div>`
     : `<h2 style="margin-top:0">Account</h2><div class="card"><p class="mute" style="margin-top:0">You are using Padayon without an account. Sign in with your email to sync your study material across devices.</p><button class="b" data-act="toLogin">Sign in</button></div>`;
   const notif = !('Notification' in window) ? '' : Notification.permission === 'granted' ? '<p class="mute" style="margin:0">Notifications are on.</p>'
     : Notification.permission === 'denied' ? '<p class="mute" style="margin:0">Notifications are blocked. Turn them on for this site in your browser settings.</p>'
@@ -1075,7 +1075,6 @@ const act = {
     b.disabled = true; b.textContent = 'Signing out…';
     try {
       const localRecords = await Promise.all(SYNC_STORES.map(all));
-      let recordsToVerify = localRecords;
       const hasLocalData = localRecords.some(records => records.length);
       const hasPendingRecords = localRecords.some(records => records.some(record => record.cloudSyncPending));
       const queued = readCloudQueue(uid);
@@ -1084,7 +1083,6 @@ const act = {
         if (!navigator.onLine) throw new Error('Pending changes cannot sync while offline. Reconnect before signing out so no work is lost.');
         await syncAccount();
         const remaining = await Promise.all(SYNC_STORES.map(all));
-        recordsToVerify = remaining;
         if (readCloudQueue(uid).length || remaining.some(records => records.some(record => record.cloudSyncPending))) {
           throw new Error('Pending changes could not be synced. Reconnect and try again so no work is lost.');
         }
@@ -1092,12 +1090,10 @@ const act = {
       if (hasLocalData && !cloudSyncEnabled) {
         throw new Error('Cloud sync is not ready, so these local files are not backed up. Configure sync or export a backup before signing out.');
       }
-      if (hasLocalData) await verifyCloudAccountData(uid, recordsToVerify);
-      await clearLocalAccountData(uid);
       localStorage.removeItem('pd_guest');
       if (auth) await auth.signOut();
       else showLogin();
-      toast('Signed out. Local study data cleared; your synced cloud copy is unchanged.', 5000);
+      toast('Signed out. Your local study data is kept on this device.', 5000);
     } catch (err) {
       toast('Could not safely sign out. ' + (err.message || 'Try again.'), 8000);
     } finally {
@@ -1588,57 +1584,6 @@ async function saveLocalRecord(s, record, id) {
     if (record.id == null) { record.id = key; await rq(store(s, 'readwrite').put(record)); }
     return record;
   } finally { cloudApplyDepth--; }
-}
-async function clearLocalAccountData(uid) {
-  if (!db) throw new Error('The local study database is not open.');
-  await new Promise((resolve, reject) => {
-    const tx = db.transaction(SYNC_STORES, 'readwrite');
-    SYNC_STORES.forEach(s => tx.objectStore(s).clear());
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error || new Error('Could not clear the local study data.'));
-    tx.onabort = () => reject(tx.error || new Error('The local data cleanup was interrupted.'));
-  });
-  localStorage.removeItem(cloudQueueKey(uid));
-  localStorage.removeItem('pd_folders_' + uid);
-  localStorage.removeItem('sb_key_' + uid);
-}
-async function verifyCloudAccountData(uid, localRecords) {
-  const { data: rows, error } = await cloudClient.from('user_records')
-    .select('cloud_id, store, data, deleted');
-  if (error) throw error;
-  const remote = new Map(rows.map(row => [row.store + ':' + row.cloud_id, row]));
-  const filesByPath = new Map();
-  for (let i = 0; i < SYNC_STORES.length; i++) {
-    for (const record of localRecords[i]) {
-      const row = record.cloudId && remote.get(SYNC_STORES[i] + ':' + record.cloudId);
-      if (!row || row.deleted) {
-        throw new Error('Cloud verification found unsynced data. Your local copy was kept; tap Sync now and try signing out again.');
-      }
-      if (SYNC_STORES[i] === 'files') {
-        const path = row.data && row.data.storagePath;
-        if (!path) throw new Error('A PDF has no cloud storage path. Your local copy was kept; tap Sync now and try again.');
-        const split = path.lastIndexOf('/');
-        const folder = path.slice(0, split), name = path.slice(split + 1);
-        if (!filesByPath.has(folder)) filesByPath.set(folder, new Set());
-        filesByPath.get(folder).add(name);
-      }
-    }
-  }
-  for (const [folder, expectedNames] of filesByPath) {
-    const found = new Set();
-    let offset = 0;
-    while (true) {
-      const { data, error: storageError } = await cloudClient.storage.from('user-files')
-        .list(folder, { limit: 1000, offset });
-      if (storageError) throw storageError;
-      for (const item of data) found.add(item.name);
-      if (data.length < 1000) break;
-      offset += data.length;
-    }
-    if ([...expectedNames].some(name => !found.has(name))) {
-      throw new Error('A PDF is missing from cloud storage. Your local copy was kept; tap Sync now and try signing out again.');
-    }
-  }
 }
 async function removeLocalRecord(s, id) {
   cloudApplyDepth++;

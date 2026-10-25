@@ -8,9 +8,11 @@ Padayon uses Supabase Auth, Postgres and private Storage for account sync and PD
 2. In **Project Settings > API**, copy the **Project URL** and the **anon / publishable key**.
 3. Put those public browser values in `supabase-config.js`, replacing `YOUR_SUPABASE_PROJECT_URL` and `YOUR_SUPABASE_ANON_KEY`. Never put a `service_role` or secret key in this app.
 4. Open **SQL Editor**, create a query, paste the contents of `supabase-schema.sql`, and run it. This creates the records table, per-user row security, private `user-files` bucket and per-user Storage policies.
-5. In **Authentication > URL Configuration**, add your hosted app URL to the allowed redirect URLs. In **Authentication > Providers**, make sure Email is enabled. Supabase may require users to confirm their email before the first sign-in.
+5. In **Authentication > URL Configuration**, set **Site URL** to your hosted app URL and add that exact URL to the allowed redirect URLs. Add `http://localhost:3000/**` only if you use that address for local development. In **Authentication > Providers**, make sure Email is enabled. Signup and password-reset links return to the address currently running Padayon; Supabase only accepts redirect URLs in its allowlist. Supabase may require users to confirm their email before the first sign-in.
 6. Host the complete app over HTTPS. The local `file://` preview is only for exploring the interface; Supabase auth redirects, service workers and cross-device use require a hosted site.
 7. Create an account, upload a PDF and check **Settings > Cloud sync**. Sign in to the same account on another device to verify that files and study data load there.
+
+If a confirmation link says it expired or is invalid, return to Padayon at its hosted HTTPS address, enter the same email, and choose **Resend confirmation email**. Open the newest email link promptly; older links may no longer work. Do not use a `localhost` link from another device or after stopping the local development server.
 
 The app stores PDF objects in the private `user-files` bucket at `{user-id}/files/{file-id}.pdf` and record metadata in `public.user_records`. Row-level security and Storage policies only allow the authenticated user to access records and objects under their own user ID. The SQL configures a 50 MiB per-PDF limit to match the Supabase Free plan's file-size restriction. On a device, cloud PDF files download only when opened, read for card generation, or included in an exported backup, so signing in does not fetch every PDF up front.
 

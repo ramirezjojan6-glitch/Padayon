@@ -313,6 +313,7 @@ html[data-theme=dark] .pl .dow span,html[data-theme=dark] .pl .cday .dots{color:
         <input type="password" id="password" placeholder="Password" autocomplete="current-password" required>
         <button class="b" type="button" data-act="signInEmail">Sign in</button>
         <button class="b alt" type="button" data-act="createEmail">Create account</button>
+        <button class="linkbtn" type="button" data-act="resendConfirmation">Resend confirmation email</button>
         <button class="linkbtn" type="button" data-act="resetPassword">Forgot password?</button>
       </div>
     </form>
@@ -1063,6 +1064,7 @@ const act = {
   clearKey() { localStorage.removeItem(keyName()); toast('Code removed', 1500); renderSettings(); },
   signInEmail: signInEmail,
   createEmail: createEmail,
+  resendConfirmation: resendConfirmation,
   resetPassword: resetPassword,
   guest() { localStorage.setItem('pd_guest', '1'); startApp(GUEST); },
   toLogin() { localStorage.removeItem('pd_guest'); showLogin(); },
@@ -1148,6 +1150,9 @@ document.querySelectorAll('.folder').forEach(el => el.addEventListener('click', 
 
 /* ---------- account state (declared early: other code uses it) ---------- */
 let me = null, auth = null;
+const AUTH_CALLBACK_PARAMS = new URLSearchParams(location.hash.slice(1));
+const authCallbackError = AUTH_CALLBACK_PARAMS.get('error_code');
+const authCallbackFailed = AUTH_CALLBACK_PARAMS.has('error');
 const GUEST = { guest: true, uid: 'guest', name: 'Guest', detail: '' };
 const keyName = () => (!me || me.guest) ? 'sb_key' : 'sb_key_' + me.uid;
 
@@ -1396,8 +1401,15 @@ function showLogin() {
   $('#emailStep').style.display = '';
   $('#viewer').classList.remove('on');
   const ready = supabaseReady();
-  document.querySelectorAll('[data-act="signInEmail"],[data-act="createEmail"],[data-act="resetPassword"]').forEach(b => { b.disabled = !ready; });
-  loginMsg(ready ? '' : 'Sign-in is not configured yet. Add your Supabase URL and anon key to supabase-config.js, or continue without an account.');
+  document.querySelectorAll('[data-act="signInEmail"],[data-act="createEmail"],[data-act="resendConfirmation"],[data-act="resetPassword"]').forEach(b => { b.disabled = !ready; });
+  const authError = authCallbackError;
+  const message = authError === 'otp_expired'
+    ? 'That confirmation link expired or was already used. Enter your email and request a fresh confirmation email.'
+    : authCallbackFailed
+      ? 'Email confirmation failed. Request a fresh confirmation email and open its newest link.'
+      : ready ? '' : 'Sign-in is not configured yet. Add your Supabase URL and anon key to supabase-config.js, or continue without an account.';
+  if (authCallbackFailed || authCallbackError) history.replaceState(null, '', location.pathname + location.search);
+  loginMsg(message);
   $('#login').classList.add('on');
 }
 
@@ -1716,6 +1728,7 @@ function emailAddress() {
   if (!input.validity.valid) { loginMsg('Enter a valid email address.'); input.focus(); return null; }
   return email;
 }
+function authRedirectTo() { return location.origin + location.pathname; }
 async function signInEmail() {
   if (!auth) return loginMsg('Sign-in is not available right now.');
   const email = emailAddress();
@@ -1736,9 +1749,20 @@ async function createEmail() {
   if (password.length < 6) { loginMsg('Choose a password with at least 6 characters.'); $('#password').focus(); return; }
   loginMsg('Creating account…', true);
   try {
-    const { data, error } = await auth.signUp({ email, password });
+    const { data, error } = await auth.signUp({ email, password, options: { emailRedirectTo: authRedirectTo() } });
     if (error) loginMsg(error.message || 'Could not create the account.');
     else if (!data.session) loginMsg('Check your email to confirm your account, then sign in.', true);
+  } catch (e) { loginMsg('Could not reach Supabase. ' + (e.message || 'Check your connection and try again.')); }
+}
+async function resendConfirmation() {
+  if (!auth) return loginMsg('Sign-in is not available right now.');
+  const email = emailAddress();
+  if (!email) return;
+  loginMsg('Sending a new confirmation email…', true);
+  try {
+    const { error } = await auth.resend({ type: 'signup', email, options: { emailRedirectTo: authRedirectTo() } });
+    if (error) loginMsg(error.message || 'Could not resend the confirmation email.');
+    else loginMsg('If the account still needs confirmation, a new email is on its way. Use the newest link.', true);
   } catch (e) { loginMsg('Could not reach Supabase. ' + (e.message || 'Check your connection and try again.')); }
 }
 async function resetPassword() {
@@ -1747,7 +1771,7 @@ async function resetPassword() {
   if (!email) return;
   loginMsg('Sending password reset email…', true);
   try {
-    const { error } = await auth.resetPasswordForEmail(email);
+    const { error } = await auth.resetPasswordForEmail(email, { redirectTo: authRedirectTo() });
     if (error) loginMsg(error.message || 'Could not send the password reset email.');
     else loginMsg('If an account exists for that address, a password reset email is on its way.', true);
   } catch (e) { loginMsg('Could not reach Supabase. ' + (e.message || 'Check your connection and try again.')); }
